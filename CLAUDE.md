@@ -17,7 +17,52 @@ dotnet test --filter "FullyQualifiedName~DataFlowTests.AgentControlFileStore_Rou
 
 # Publish (self-contained win-x64, includes Agent→App embedding and verification)
 .\publish\scripts\publish.ps1
+
+# Dev channel — isolated runtime for UI/feature development (no impact on production)
+dotnet run --project src/QuantifiedSelf.Windows.App -- --channel dev --ui-preview
+
+# Dev channel with Agent console visible
+dotnet run --project src/QuantifiedSelf.Windows.App -- --channel dev --ui-preview --show-agent-console
 ```
+
+## RuntimeChannel & Dev/Prod Isolation
+
+The `RuntimeChannel` (in `Core/Runtime/RuntimeChannel.cs`) enables fully isolated dev and production runtimes. Key facts:
+
+- **Default (prod)**: No args needed. Uses `%LOCALAPPDATA%\WUJI\WindowsAgent`, standard pipe name, standard mutex.
+- **Dev**: `--channel dev` (also accepts `--channel=dev`, `development`, `preview`). Uses `%LOCALAPPDATA%\WUJI-Dev\WindowsAgent`, pipe name with `.dev.` qualifier, dev-only mutex.
+- **`--ui-preview`**: Flag parsed by `StartupLaunchOptions` but not yet wired to UI switching — available for feature-gating new UI under development.
+
+### Isolation dimensions
+
+| Resource | Prod | Dev |
+|----------|------|-----|
+| Data root | `%LOCALAPPDATA%\WUJI\WindowsAgent` | `%LOCALAPPDATA%\WUJI-Dev\WindowsAgent` |
+| Named Pipe | `QuantifiedSelf.Windows.Agent.{hash}` | `QuantifiedSelf.Windows.Agent.dev.{hash}` |
+| Agent mutex | `Local\QuantifiedSelf.Windows.Agent.{sid}` | `Local\QuantifiedSelf.Windows.Agent.dev.{sid}` |
+| HKCU Run Key | `WUJI` | `WUJI Dev` |
+| Window title | `WUJI 吾迹` | `WUJI Dev - WUJI 吾迹` |
+
+### How channel flows through the system
+
+1. `App.xaml.cs` → `StartupLaunchOptions.Parse(args)` → `RuntimeChannel.Parse(channelName)`
+2. Channel is passed to: `WindowsAgentPaths`, `AgentPipeName`, `AgentProcessService`, `StartupCommandBuilder`, `StartupRegistrationService`
+3. App launches Agent with `--channel dev` + env `WUJI_RUNTIME_CHANNEL=dev`
+4. Agent `Program.cs` reads channel from args or env var, uses channel-qualified mutex name
+
+### UI development workflow
+
+A Git worktree at `../Win-ui` is recommended for UI refactoring that should not interfere with the stable `Win/` directory. Both can run simultaneously with dev/prod isolation. See `docs/design/UI重构开发基座-2026-07-12.md`.
+
+### Key files for channel changes
+
+When adding channel-aware behavior, touch these:
+- `Core/Runtime/RuntimeChannel.cs` — add derived properties here
+- `Core/Paths/WindowsAgentPaths.cs` — path derivation uses `DataRootProductFolder`
+- `Core/Ipc/AgentPipeName.cs` — pipe name uses `PipeQualifier`
+- `App/Services/StartupLaunchOptions.cs` — new CLI flags
+- `App/Services/StartupCommandBuilder.cs` — auto-start commands, `CommandsMatch`
+- `Agent/Program.cs` — mutex name, channel arg parsing
 
 ## Architecture
 

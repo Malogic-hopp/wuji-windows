@@ -55,6 +55,26 @@ dotnet run --project src/QuantifiedSelf.Windows.App/
 
 > 运行 App 后，点击 **Start Agent** 开始采样（如需自动启动，可在 Settings 中启用 `AutoStartAgentWhenAppStarts`）。Agent 运行时可在系统托盘找到图标，右键管理 Agent 状态。
 
+### UI 开发版
+
+开发版通过 `--channel dev` 与稳定版完全隔离，双方互不影响：
+
+```bash
+# 创建 UI 开发 worktree
+git worktree add ../Win-ui -b feature/ui-redesign
+
+# 启动开发版（独立数据目录、Pipe、注册表项）
+cd ../Win-ui
+dotnet run --project src/QuantifiedSelf.Windows.App -- --channel dev --ui-preview
+```
+
+| 资源 | 稳定版 | 开发版 |
+|------|--------|--------|
+| 数据目录 | `%LOCALAPPDATA%\WUJI\WindowsAgent` | `%LOCALAPPDATA%\WUJI-Dev\WindowsAgent` |
+| 窗口标题 | `WUJI 吾迹` | `WUJI Dev - WUJI 吾迹` |
+
+详见 [UI重构开发基座说明](docs/design/UI重构开发基座-2026-07-12.md)。
+
 ## 发布
 
 ```powershell
