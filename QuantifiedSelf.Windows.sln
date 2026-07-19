@@ -47,6 +47,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuantifiedSelf.Windows.Dash
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuantifiedSelf.Windows.SettingsParity", "tools\QuantifiedSelf.Windows.SettingsParity\QuantifiedSelf.Windows.SettingsParity.csproj", "{A8AFC1C3-3A72-4FB2-A775-61BAA6F0C4DE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuantifiedSelf.Windows.ActivityParity", "tools\QuantifiedSelf.Windows.ActivityParity\QuantifiedSelf.Windows.ActivityParity.csproj", "{2CBD3C9B-7F8F-4B89-B0DD-06FCD64CF49C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -132,6 +134,10 @@ Global
 		{A8AFC1C3-3A72-4FB2-A775-61BAA6F0C4DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A8AFC1C3-3A72-4FB2-A775-61BAA6F0C4DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A8AFC1C3-3A72-4FB2-A775-61BAA6F0C4DE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2CBD3C9B-7F8F-4B89-B0DD-06FCD64CF49C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2CBD3C9B-7F8F-4B89-B0DD-06FCD64CF49C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2CBD3C9B-7F8F-4B89-B0DD-06FCD64CF49C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2CBD3C9B-7F8F-4B89-B0DD-06FCD64CF49C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E7172585-3E42-4EDF-8879-CD7986F11642} = {5AD10CEE-08F2-4805-8E4E-0001AC6E31C3}
@@ -153,5 +159,6 @@ Global
 		{9BA0BB3D-5889-4488-916D-9364DDD312D5} = {60861D2E-B566-400D-B0EC-6E314A6F0769}
 		{7959164A-FD97-4A96-ACE7-108D014F3A2C} = {60861D2E-B566-400D-B0EC-6E314A6F0769}
 		{A8AFC1C3-3A72-4FB2-A775-61BAA6F0C4DE} = {60861D2E-B566-400D-B0EC-6E314A6F0769}
+		{2CBD3C9B-7F8F-4B89-B0DD-06FCD64CF49C} = {60861D2E-B566-400D-B0EC-6E314A6F0769}
 	EndGlobalSection
 EndGlobal

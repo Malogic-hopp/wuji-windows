@@ -530,7 +530,7 @@ public sealed class TauriArchitectureBoundaryTests
         Assert.Contains("refreshQueriesAfterBridgeReady(queryClient)", container, StringComparison.Ordinal);
         Assert.Contains("['activity', 'overview']", invalidation, StringComparison.Ordinal);
         Assert.Contains(
-            "invalidateQueries({ queryKey: activityOverviewQueryKey })",
+            "invalidateQueries({ queryKey: activityQueryKey })",
             invalidation,
             StringComparison.Ordinal);
         Assert.Contains("['settings', 'current']", invalidation, StringComparison.Ordinal);
@@ -712,6 +712,44 @@ public sealed class TauriArchitectureBoundaryTests
 
         Assert.Contains("private const string ChannelName = \"dev\"", probe, StringComparison.Ordinal);
         Assert.Contains("Agent 正在运行", probe, StringComparison.Ordinal);
+        Assert.Contains("windowTitle", probe, StringComparison.Ordinal);
+        Assert.Contains("databasePath", probe, StringComparison.Ordinal);
+        Assert.Contains("EnumeratePropertyNames", probe, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppendLine($\"| 数据库", probe, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("AppendLine($\"| 窗口", probe, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ActivityParitySmoke_UsesFixedDevBridgeAndRunsParityTool()
+    {
+        using var package = JsonDocument.Parse(ReadTauriFile("package.json"));
+        var scripts = package.RootElement.GetProperty("scripts");
+        var smoke = ReadTauriFile("scripts", "activity-parity-smoke.ps1");
+
+        Assert.Equal(
+            "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/activity-parity-smoke.ps1",
+            scripts.GetProperty("smoke:activity-parity").GetString());
+        Assert.Contains("src-tauri\\sidecars\\bridge\\QuantifiedSelf.Windows.Client.Bridge.exe", smoke, StringComparison.Ordinal);
+        Assert.Contains("tools\\QuantifiedSelf.Windows.ActivityParity", smoke, StringComparison.Ordinal);
+        Assert.Contains("Compare the same dev data", smoke, StringComparison.Ordinal);
+        Assert.DoesNotContain("--channel prod", smoke, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ActivityParityProbe_FixesDevChannelAndOmitsPrivateFieldsFromReports()
+    {
+        var probe = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "tools",
+            "QuantifiedSelf.Windows.ActivityParity",
+            "Program.cs"));
+
+        Assert.Contains("private const string ChannelName = \"dev\"", probe, StringComparison.Ordinal);
+        Assert.Contains("Agent 正在运行", probe, StringComparison.Ordinal);
+        Assert.Contains("activity.getDailyStats", probe, StringComparison.Ordinal);
+        Assert.Contains("activity.getWeeklyTrend", probe, StringComparison.Ordinal);
+        Assert.Contains("activity.getTimeline", probe, StringComparison.Ordinal);
+        Assert.Contains("activity.getHeatmap", probe, StringComparison.Ordinal);
         Assert.Contains("windowTitle", probe, StringComparison.Ordinal);
         Assert.Contains("databasePath", probe, StringComparison.Ordinal);
         Assert.Contains("EnumeratePropertyNames", probe, StringComparison.Ordinal);

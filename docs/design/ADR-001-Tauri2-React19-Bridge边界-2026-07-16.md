@@ -101,6 +101,21 @@ Empty 仅在摘要的全部 duration/session count 为零且 Top Apps、最近�
 
 页面可见时 Overview 每 15 秒刷新；`document.visibilityState` 为 hidden 时降至 60 秒，并允许 background interval 继续以低频运行。手动刷新在已 initialize 时只重取 Overview；initialize 失败时先恢复 initialize 再查询。Loading 使用 polite status，Error 使用 alert 和安全错误文案，刷新完成通过 live region 通知读屏。原生 button、全局 focus-visible、forced-colors 和 prefers-reduced-motion 规则覆盖键盘、High Contrast 与减少动画要求。
 
+### 4.5 阶段 8A 活动分析合同扩展
+
+阶段 8A 增加四个只读白名单方法，全部复用阶段 4A 的只读查询 timeout（Bridge 内层 10 秒，Rust 外层 12 秒）：
+
+| 方法 | `IWujiClient` 用例 | 副作用 | timeout |
+|---|---|---:|---:|
+| `activity.getDailyStats` | `Activity.DailyStats.GetSummaryForDateAsync` | 否 | 10 秒 |
+| `activity.getWeeklyTrend` | `Activity.WeeklyTrend.GetWeeklyTrendAsync` | 否 | 10 秒 |
+| `activity.getTimeline` | `Activity.Timeline.GetTimelineAsync` | 否 | 10 秒 |
+| `activity.getHeatmap` | `Activity.Heatmap.GetHeatmapAsync` | 否 | 10 秒 |
+
+`getDailyStats` 与 `getTimeline` 的唯一参数是 `date`（本地 `yyyy-MM-dd`），Bridge 严格 `TryParseExact` 校验，非法参数返回安全 `invalid_request`，不接受 UTC 偏移、时间分量或任意范围。`unknownSeconds` 只由 `total-active-idle` 不变量推导，不重新计算；趋势三段中文比较文案由 Application 生成并原样透传；热力图五级 `intensityLevel` 由 Core 计算器统一分桶，前端不得重新分档；时间线只暴露裁剪后的段/空档与 snake_case `closeReason` 安全枚举。四个响应均不包含会话数据库 ID、进程名、窗口标题、可执行路径或内部异常；`appName`/`topAppName` 沿用阶段 4A 的显示名消毒规则。
+
+Bridge `ready`、设置保存与 Agent 命令统一失效整个 `['activity']` query 域（overview 包含在该域内），React 不在失效路径上重算业务数据。
+
 ## 5. 协议与版本
 
 - JSON-RPC 版本固定为 `2.0`；
