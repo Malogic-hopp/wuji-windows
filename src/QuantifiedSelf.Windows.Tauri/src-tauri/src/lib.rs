@@ -12,9 +12,10 @@ mod tray;
 
 use bridge::{BridgeSupervisor, fixed_bridge_path};
 use commands::{
-    activity_get_overview, agent_get_status, agent_pause, agent_resume, agent_start, agent_stop,
-    app_cancel_close, app_initialize, app_request_exit, app_set_unsaved_changes, bridge_retry,
-    settings_get, settings_update, window_hide, window_show,
+    activity_get_daily_stats, activity_get_heatmap, activity_get_overview, activity_get_timeline,
+    activity_get_weekly_trend, agent_get_status, agent_pause, agent_resume, agent_start,
+    agent_stop, app_cancel_close, app_initialize, app_request_exit, app_set_unsaved_changes,
+    bridge_retry, settings_get, settings_update, window_hide, window_show,
 };
 use lifecycle::{HostLifecycle, handle_window_event, permits_exit, request_exit};
 use single_instance::{InstanceDecision, acquire_dev_instance};
@@ -48,6 +49,10 @@ pub fn run() {
             agent_resume,
             agent_stop,
             activity_get_overview,
+            activity_get_daily_stats,
+            activity_get_weekly_trend,
+            activity_get_timeline,
+            activity_get_heatmap,
             settings_get,
             settings_update,
             bridge_retry,
@@ -87,6 +92,10 @@ mod tests {
                 "agent_resume",
                 "agent_stop",
                 "activity_get_overview",
+                "activity_get_daily_stats",
+                "activity_get_weekly_trend",
+                "activity_get_timeline",
+                "activity_get_heatmap",
                 "settings_get",
                 "settings_update",
                 "bridge_retry",

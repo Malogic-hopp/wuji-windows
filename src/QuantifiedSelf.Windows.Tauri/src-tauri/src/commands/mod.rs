@@ -3,8 +3,9 @@ use tauri::{AppHandle, State};
 use crate::{
     bridge::{BridgeSupervisor, CommandError},
     contracts::{
-        ActivityOverviewResult, AgentStatus, ClientInitializeResult, CommandResult,
-        SettingsGetResult, SettingsUpdateParams, SettingsUpdateResult,
+        ActivityDailyStatsResult, ActivityDateParams, ActivityHeatmapResult, ActivityOverviewResult,
+        ActivityTimelineResult, ActivityWeeklyTrendResult, AgentStatus, ClientInitializeResult,
+        CommandResult, SettingsGetResult, SettingsUpdateParams, SettingsUpdateResult,
     },
     lifecycle::{
         LifecycleCommandError, cancel_close, hide_main_window, request_exit, set_unsaved_changes,
@@ -21,6 +22,10 @@ pub const COMMAND_WHITELIST: &[&str] = &[
     "agent_resume",
     "agent_stop",
     "activity_get_overview",
+    "activity_get_daily_stats",
+    "activity_get_weekly_trend",
+    "activity_get_timeline",
+    "activity_get_heatmap",
     "settings_get",
     "settings_update",
     "bridge_retry",
@@ -81,6 +86,40 @@ pub async fn activity_get_overview(
 }
 
 #[tauri::command]
+pub async fn activity_get_daily_stats(
+    supervisor: State<'_, BridgeSupervisor>,
+    request: ActivityDateParams,
+) -> Result<ActivityDailyStatsResult, CommandError> {
+    supervisor
+        .request_with_params("activity.getDailyStats", request)
+        .await
+}
+
+#[tauri::command]
+pub async fn activity_get_weekly_trend(
+    supervisor: State<'_, BridgeSupervisor>,
+) -> Result<ActivityWeeklyTrendResult, CommandError> {
+    supervisor.request("activity.getWeeklyTrend").await
+}
+
+#[tauri::command]
+pub async fn activity_get_timeline(
+    supervisor: State<'_, BridgeSupervisor>,
+    request: ActivityDateParams,
+) -> Result<ActivityTimelineResult, CommandError> {
+    supervisor
+        .request_with_params("activity.getTimeline", request)
+        .await
+}
+
+#[tauri::command]
+pub async fn activity_get_heatmap(
+    supervisor: State<'_, BridgeSupervisor>,
+) -> Result<ActivityHeatmapResult, CommandError> {
+    supervisor.request("activity.getHeatmap").await
+}
+
+#[tauri::command]
 pub async fn settings_get(
     supervisor: State<'_, BridgeSupervisor>,
 ) -> Result<SettingsGetResult, CommandError> {
@@ -135,7 +174,7 @@ mod tests {
 
     #[test]
     fn exposes_only_semantic_commands() {
-        assert_eq!(COMMAND_WHITELIST.len(), 15);
+        assert_eq!(COMMAND_WHITELIST.len(), 19);
         assert!(COMMAND_WHITELIST.iter().all(|command| {
             !command.contains("shell")
                 && !command.contains("file")

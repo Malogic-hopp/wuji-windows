@@ -696,6 +696,10 @@ fn can_automatically_restart(previous_restarts: u8, uptime: Duration) -> bool {
 fn request_timeout(method: &str) -> Duration {
     match method {
         "activity.getOverview" => READ_ONLY_QUERY_TIMEOUT,
+        "activity.getDailyStats" => READ_ONLY_QUERY_TIMEOUT,
+        "activity.getWeeklyTrend" => READ_ONLY_QUERY_TIMEOUT,
+        "activity.getTimeline" => READ_ONLY_QUERY_TIMEOUT,
+        "activity.getHeatmap" => READ_ONLY_QUERY_TIMEOUT,
         "settings.get" => SETTINGS_READ_TIMEOUT,
         "settings.update" => SETTINGS_UPDATE_TIMEOUT,
         "agent.stop" => STOP_TIMEOUT,
@@ -798,6 +802,18 @@ mod tests {
         );
         assert_eq!(READ_ONLY_QUERY_TIMEOUT, Duration::from_secs(12));
         assert_eq!(request_timeout("agent.stop"), STOP_TIMEOUT);
+    }
+
+    #[test]
+    fn activity_analysis_queries_use_the_bounded_read_only_timeout() {
+        for method in [
+            "activity.getDailyStats",
+            "activity.getWeeklyTrend",
+            "activity.getTimeline",
+            "activity.getHeatmap",
+        ] {
+            assert_eq!(request_timeout(method), READ_ONLY_QUERY_TIMEOUT);
+        }
     }
 
     #[test]
