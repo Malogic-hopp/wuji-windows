@@ -39,6 +39,10 @@ describe('bridgeClient semantic commands', () => {
       'agent_resume',
       'agent_stop',
       'activity_get_overview',
+      'activity_get_daily_stats',
+      'activity_get_weekly_trend',
+      'activity_get_timeline',
+      'activity_get_heatmap',
       'settings_get',
       'settings_update',
       'bridge_retry',
@@ -48,6 +52,24 @@ describe('bridgeClient semantic commands', () => {
       'app_request_exit',
       'app_cancel_close',
     ]);
+  });
+
+  it('按 request 包装约定请求四个 activity 统计 command', async () => {
+    vi.mocked(invoke).mockResolvedValue({});
+
+    await bridgeClient.getActivityDailyStats('2026-07-19');
+    await bridgeClient.getActivityWeeklyTrend();
+    await bridgeClient.getActivityTimeline('2026-07-19');
+    await bridgeClient.getActivityHeatmap();
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'activity_get_daily_stats', {
+      request: { date: '2026-07-19' },
+    });
+    expect(invoke).toHaveBeenNthCalledWith(2, 'activity_get_weekly_trend');
+    expect(invoke).toHaveBeenNthCalledWith(3, 'activity_get_timeline', {
+      request: { date: '2026-07-19' },
+    });
+    expect(invoke).toHaveBeenNthCalledWith(4, 'activity_get_heatmap');
   });
 
   it('通过固定 command 读取并原样提交生成的 Settings DTO', async () => {

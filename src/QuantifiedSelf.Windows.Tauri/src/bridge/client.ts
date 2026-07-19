@@ -1,6 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  ActivityDailyStatsResult,
+  ActivityDateParams,
+  ActivityHeatmapResult,
   ActivityOverviewResult,
+  ActivityTimelineResult,
+  ActivityWeeklyTrendResult,
   AgentStatus,
   ClientInitializeResult,
   CommandResult,
@@ -29,6 +34,10 @@ export const commandWhitelist = {
   agentResume: 'agent_resume',
   agentStop: 'agent_stop',
   activityOverview: 'activity_get_overview',
+  activityDailyStats: 'activity_get_daily_stats',
+  activityWeeklyTrend: 'activity_get_weekly_trend',
+  activityTimeline: 'activity_get_timeline',
+  activityHeatmap: 'activity_get_heatmap',
   settingsGet: 'settings_get',
   settingsUpdate: 'settings_update',
   bridgeRetry: 'bridge_retry',
@@ -53,6 +62,18 @@ export const bridgeClient = {
     invoke<CommandResult>(agentCommands[command]),
   getActivityOverview: () =>
     invoke<ActivityOverviewResult>(commandWhitelist.activityOverview),
+  getActivityDailyStats: (date: string) => {
+    const request: ActivityDateParams = { date };
+    return invoke<ActivityDailyStatsResult>(commandWhitelist.activityDailyStats, { request });
+  },
+  getActivityWeeklyTrend: () =>
+    invoke<ActivityWeeklyTrendResult>(commandWhitelist.activityWeeklyTrend),
+  getActivityTimeline: (date: string) => {
+    const request: ActivityDateParams = { date };
+    return invoke<ActivityTimelineResult>(commandWhitelist.activityTimeline, { request });
+  },
+  getActivityHeatmap: () =>
+    invoke<ActivityHeatmapResult>(commandWhitelist.activityHeatmap),
   getSettings: () => invoke<SettingsGetResult>(commandWhitelist.settingsGet),
   updateSettings: (settings: SettingsSnapshot) => {
     const request: SettingsUpdateParams = { settings };

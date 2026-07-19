@@ -171,7 +171,7 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText('设置已保存，并已重新读取本地结果。')).toBeInTheDocument());
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['settings', 'current'] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['agent', 'status'] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['activity', 'overview'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['activity'] });
   });
 
   it('dirty 状态同步到宿主，原生关闭默认保留并可确认隐藏到托盘', async () => {

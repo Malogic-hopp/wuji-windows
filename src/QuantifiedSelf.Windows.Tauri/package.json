@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bundle:check": "node ./scripts/check-bundle-budget.mjs",
+    "smoke:activity-parity": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/activity-parity-smoke.ps1",
     "smoke:bridge-recovery": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/bridge-recovery-smoke.ps1",
     "smoke:dashboard-parity": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dashboard-parity-smoke.ps1",
     "smoke:lifecycle-parity": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/lifecycle-parity-smoke.ps1",

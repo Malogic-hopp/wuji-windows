@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ChartLineUpIcon, GearSixIcon } from '@phosphor-icons/react';
+import { ChartBarIcon, ChartLineUpIcon, ClockCountdownIcon, GearSixIcon, GridFourIcon, LineSegmentsIcon } from '@phosphor-icons/react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AgentCommandContainer } from '../features/agent/AgentCommandContainer';
 
@@ -20,6 +20,18 @@ export function AppLayout() {
       } else if (event.key === '2') {
         event.preventDefault();
         void navigate('/settings');
+      } else if (event.key === '3') {
+        event.preventDefault();
+        void navigate('/activity/today');
+      } else if (event.key === '4') {
+        event.preventDefault();
+        void navigate('/activity/trend');
+      } else if (event.key === '5') {
+        event.preventDefault();
+        void navigate('/activity/timeline');
+      } else if (event.key === '6') {
+        event.preventDefault();
+        void navigate('/activity/heatmap');
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -45,6 +57,26 @@ export function AppLayout() {
             <ChartLineUpIcon size={20} aria-hidden="true" />
             <span>概览</span>
             <kbd>Alt 1</kbd>
+          </NavLink>
+          <NavLink to="/activity/today">
+            <ClockCountdownIcon size={20} aria-hidden="true" />
+            <span>今日</span>
+            <kbd>Alt 3</kbd>
+          </NavLink>
+          <NavLink to="/activity/trend">
+            <ChartBarIcon size={20} aria-hidden="true" />
+            <span>趋势</span>
+            <kbd>Alt 4</kbd>
+          </NavLink>
+          <NavLink to="/activity/timeline">
+            <LineSegmentsIcon size={20} aria-hidden="true" />
+            <span>时间线</span>
+            <kbd>Alt 5</kbd>
+          </NavLink>
+          <NavLink to="/activity/heatmap">
+            <GridFourIcon size={20} aria-hidden="true" />
+            <span>热力图</span>
+            <kbd>Alt 6</kbd>
           </NavLink>
           <NavLink to="/settings">
             <GearSixIcon size={20} aria-hidden="true" />
