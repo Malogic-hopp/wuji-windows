@@ -21,3 +21,10 @@ export async function refreshQueriesAfterSettingsSaved(queryClient: QueryClient)
     queryClient.invalidateQueries({ queryKey: activityOverviewQueryKey }),
   ]);
 }
+
+export async function refreshQueriesAfterAgentCommand(queryClient: QueryClient) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: agentStatusQueryKey }),
+    queryClient.invalidateQueries({ queryKey: activityOverviewQueryKey }),
+  ]);
+}

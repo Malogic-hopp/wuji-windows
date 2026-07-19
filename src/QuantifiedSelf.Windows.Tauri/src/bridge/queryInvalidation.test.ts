@@ -2,6 +2,8 @@ import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 import {
   activityOverviewQueryKey,
+  agentStatusQueryKey,
+  refreshQueriesAfterAgentCommand,
   refreshQueriesAfterBridgeReady,
   refreshQueriesAfterSettingsSaved,
   settingsQueryKey,
@@ -17,6 +19,19 @@ describe('refreshQueriesAfterBridgeReady', () => {
 
     expect(queryClient.getQueryState(activityOverviewQueryKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(settingsQueryKey)?.isInvalidated).toBe(true);
+  });
+});
+
+describe('refreshQueriesAfterAgentCommand', () => {
+  it('Agent 命令成功后同时失效状态与 Dashboard 查询', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(agentStatusQueryKey, { stale: 'agent' });
+    queryClient.setQueryData(activityOverviewQueryKey, { stale: 'dashboard' });
+
+    await refreshQueriesAfterAgentCommand(queryClient);
+
+    expect(queryClient.getQueryState(agentStatusQueryKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(activityOverviewQueryKey)?.isInvalidated).toBe(true);
   });
 });
 

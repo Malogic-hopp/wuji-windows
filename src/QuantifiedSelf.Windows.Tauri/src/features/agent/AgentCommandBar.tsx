@@ -54,7 +54,7 @@ export function AgentCommandBar({
     );
   }
 
-  const presentation = presentAgentState(status.actualState);
+  const presentation = presentAgentState(status);
 
   return (
     <section className="agent-bar" aria-label="后台记录服务">
@@ -64,9 +64,7 @@ export function AgentCommandBar({
         {commandError ? (
           <span className="agent-bar__command-error" role="alert">{commandError}</span>
         ) : (
-          <span className="agent-bar__detail">
-            {status.isHealthy ? '服务响应正常' : '等待健康状态'}
-          </span>
+          <span className="agent-bar__detail">{presentation.detail}</span>
         )}
       </div>
       <div className="agent-bar__actions" aria-label="Agent 操作">

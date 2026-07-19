@@ -52,4 +52,22 @@ describe('AgentCommandBar', () => {
     expect(screen.queryByText('连接已断开')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '继续' })).toBeEnabled();
   });
+
+  it('stale 且 Agent 不存在时显示中断恢复入口', () => {
+    render(
+      <AgentCommandBar
+        status={{ actualState: 'stale', isRunning: false, isHealthy: true, isStale: true }}
+        busy={false}
+        disconnected={false}
+        onCommand={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('记录已中断')).toBeInTheDocument();
+    expect(screen.getByText('Agent 未运行，可以重新启动')).toBeInTheDocument();
+    expect(screen.queryByText('服务响应正常')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '启动' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '停止' })).toBeDisabled();
+  });
 });

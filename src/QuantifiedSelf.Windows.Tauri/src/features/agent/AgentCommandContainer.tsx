@@ -8,6 +8,7 @@ import { bridgeClient, toCommandError, type AgentCommand } from '../../bridge/cl
 import {
   agentStatusQueryKey,
   initializeQueryKey,
+  refreshQueriesAfterAgentCommand,
   refreshQueriesAfterBridgeReady,
 } from '../../bridge/queryInvalidation';
 import { AgentCommandBar } from './AgentCommandBar';
@@ -50,7 +51,7 @@ export function AgentCommandContainer() {
   });
   const command = useMutation({
     mutationFn: (value: AgentCommand) => bridgeClient.runAgentCommand(value),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: agentStatusQueryKey }),
+    onSuccess: async () => refreshQueriesAfterAgentCommand(queryClient),
   });
   const retry = useMutation({
     mutationFn: bridgeClient.retry,

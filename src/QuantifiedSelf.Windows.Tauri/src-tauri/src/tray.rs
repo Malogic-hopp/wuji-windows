@@ -244,12 +244,21 @@ fn present_agent_state(state: &AgentState, is_running: bool) -> AgentMenuPresent
         AgentState::Resuming => presentation.label = "Agent：正在恢复",
         AgentState::Stopping => presentation.label = "Agent：正在停止",
         AgentState::Stale => {
-            presentation.label = "Agent：状态过期";
-            presentation.can_stop = is_running;
+            if is_running {
+                presentation.label = "Agent：状态过期";
+                presentation.can_stop = true;
+            } else {
+                presentation.label = "Agent：记录已中断";
+                presentation.can_start = true;
+            }
         }
         AgentState::Error => {
             presentation.label = "Agent：服务异常";
-            presentation.can_stop = is_running;
+            if is_running {
+                presentation.can_stop = true;
+            } else {
+                presentation.can_start = true;
+            }
         }
         AgentState::Maintenance => presentation.label = "Agent：维护中",
     }
@@ -287,5 +296,18 @@ mod tests {
     fn stale_status_never_enables_stop_for_a_missing_process() {
         let stale = present_agent_state(&AgentState::Stale, false);
         assert!(!stale.can_stop);
+        assert!(stale.can_start);
+        assert_eq!(stale.label, "Agent：记录已中断");
+    }
+
+    #[test]
+    fn error_status_can_restart_only_when_the_process_is_missing() {
+        let missing = present_agent_state(&AgentState::Error, false);
+        assert!(missing.can_start);
+        assert!(!missing.can_stop);
+
+        let running = present_agent_state(&AgentState::Error, true);
+        assert!(!running.can_start);
+        assert!(running.can_stop);
     }
 }
