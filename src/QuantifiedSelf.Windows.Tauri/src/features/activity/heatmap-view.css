@@ -217,36 +217,62 @@
   animation: heatmap-skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
-.heatmap-skeleton span:nth-child(7n + 1) { animation-delay: 0ms; }
-.heatmap-skeleton span:nth-child(7n + 2) { animation-delay: 80ms; }
-.heatmap-skeleton span:nth-child(7n + 3) { animation-delay: 160ms; }
-.heatmap-skeleton span:nth-child(7n + 4) { animation-delay: 240ms; }
-.heatmap-skeleton span:nth-child(7n + 5) { animation-delay: 320ms; }
-.heatmap-skeleton span:nth-child(7n + 6) { animation-delay: 400ms; }
-.heatmap-skeleton span:nth-child(7n + 7) { animation-delay: 480ms; }
+.heatmap-skeleton span:nth-child(7n + 1) {
+  animation-delay: 0ms;
+}
+
+.heatmap-skeleton span:nth-child(7n + 2) {
+  animation-delay: 80ms;
+}
+
+.heatmap-skeleton span:nth-child(7n + 3) {
+  animation-delay: 160ms;
+}
+
+.heatmap-skeleton span:nth-child(7n + 4) {
+  animation-delay: 240ms;
+}
+
+.heatmap-skeleton span:nth-child(7n + 5) {
+  animation-delay: 320ms;
+}
+
+.heatmap-skeleton span:nth-child(7n + 6) {
+  animation-delay: 400ms;
+}
+
+.heatmap-skeleton span:nth-child(7n + 7) {
+  animation-delay: 480ms;
+}
 
 @keyframes heatmap-skeleton-shimmer {
-  50% { opacity: 0.35; }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .heatmap-skeleton span { animation: none; }
+  .heatmap-skeleton span {
+    animation: none;
+  }
 }
 
-/* ---------- 时段分隔：凌晨 / 上午 / 下午 / 晚上 ---------- */
+/* ---------- 时段分隔线：加粗高对比横线 ---------- */
 
-/* 时段末尾行：下方贯穿网格的细分隔线 + 加大间距 */
+/* 时段末尾行：2px 横线横贯整个网格，线居中落在时段间距里；
+ * 浓度与 legend 色块描边统一为 55%，需要更明显可调到 70% */
 .heatmap-grid .heatmap-grid__row--divider {
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text-muted) 25%, transparent);
-  padding-bottom: var(--space-2);
-  margin-bottom: var(--space-2);
+  border-bottom: 2px solid color-mix(in srgb, var(--color-text-muted) 55%, transparent);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
 }
 
-/* 左侧时段标签：四等分网格高度，各自垂直居中，对齐时段带 */
+/* 左侧时段标签：四等分自动居中到各自时段（无括号），行距变化不会错位 */
 .heatmap-time-labels {
   display: grid;
   grid-template-rows: repeat(4, 1fr);
   padding-top: 34px;
+  /* 补偿顶部星期/日期标签高度，对不齐就微调这个值 */
 }
 
 .heatmap-time-labels span {
