@@ -57,8 +57,8 @@ function renderView(overrides: Partial<Parameters<typeof TimelineView>[0]> = {})
     locale: 'zh-CN',
     ...overrides,
   };
-  render(<TimelineView {...props} />);
-  return props;
+  const utils = render(<TimelineView {...props} />);
+  return { props, ...utils };
 }
 
 describe('TimelineView 状态', () => {
@@ -121,8 +121,14 @@ describe('TimelineView 时间线与会话列表', () => {
     expect(first).toHaveFocus();
   });
 
-  it('列表展示时间范围、时长、应用名、进行中徽章与克制的结束原因', () => {
-    renderView();
+  it('列表按开始时间倒序展示时间范围、时长、应用名、进行中徽章与克制的结束原因', () => {
+    const { container } = renderView();
+
+    const items = container.querySelectorAll('.activity-list--timeline > li');
+    expect(items).toHaveLength(2);
+    // 14:00 的 Edge 比 09:00 的 Code 晚，倒序后排在最前
+    expect(items[0]).toHaveTextContent('Microsoft Edge');
+    expect(items[1]).toHaveTextContent('Visual Studio Code');
 
     expect(screen.getAllByText('Visual Studio Code').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Microsoft Edge').length).toBeGreaterThan(0);

@@ -273,14 +273,15 @@ function TimelineReady({
           <div className="dashboard-module__icon"><ClockCountdownIcon size={20} aria-hidden="true" /></div>
           <div>
             <h2 id="timeline-list-title">当天会话</h2>
-            <p>按开始时间排序，共 {timeline.sessions.length} 个会话</p>
+            <p>按开始时间倒序，共 {timeline.sessions.length} 个会话</p>
           </div>
         </div>
         {timeline.sessions.length === 0 ? (
           <p className="module-empty">这一天只有间隔，没有会话记录。</p>
         ) : (
           <ol className="activity-list activity-list--timeline">
-            {timeline.sessions.map((session) => {
+            {/* 服务端按开始时间升序下发；列表倒序展示，最新会话在最前 */}
+            {[...timeline.sessions].reverse().map((session) => {
               const closeLabel = session.isOpen ? undefined : getCloseReasonLabel(session.closeReason);
               const detailParts = [`有效使用 ${formatDuration(session.activeSeconds, locale)}`];
               if (session.idleSeconds > 0) detailParts.push(`空闲 ${formatDuration(session.idleSeconds, locale)}`);
