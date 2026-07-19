@@ -8,25 +8,29 @@ import {
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import type { ActivityHeatmapResult } from '../../bridge/contracts';
-import { formatMonthDayLabel, formatWeekdayLabel } from './activityFormatting';
+import { formatWeekdayLabel } from './activityFormatting';
 import {
   buildGrid,
   clampFocusPosition,
   getCellLabel,
   getDefaultFocusPosition,
   getTimelineHourPath,
-  heatmapColumnCount,
-  heatmapIntensityLabels,
+  heatmapHourCount,
+  isHourPeriodEnd,
   moveFocus,
   normalizeIntensityLevel,
   type ActivityHeatmapViewState,
   type HeatmapFocusKey,
   type HeatmapFocusPosition,
-  type HeatmapGridRow,
 } from './heatmapModel';
 import { formatLastUpdated } from '../dashboard/dashboardFormatting';
+import './heatmap-view.css';
 
 type Locale = string | readonly string[] | undefined;
+
+function formatShortDate(date: string): string {
+  return date.slice(5).replace('-', '/');
+}
 
 interface HeatmapViewProps {
   readonly state: ActivityHeatmapViewState;
@@ -47,7 +51,7 @@ export function HeatmapView({ state, refreshing, currentHour, onRefresh, locale 
         <div>
           <p className="eyebrow">热力图</p>
           <h1 tabIndex={-1}>最近 7 天，什么时候最忙</h1>
-          <p>按本地时间把最近 7 天、每天 24 小时的活跃程度铺成热力格，颜色越深代表越活跃；今天的格子会随采样持续更新，选中任意格子可查看对应小时的时间线。</p>
+          <p>颜色越深代表该小时越活跃，点击格子可查看对应小时的时间线。</p>
         </div>
         {(state.kind === 'ready' || state.kind === 'empty') && (
           <div className="dashboard-refresh">
@@ -93,8 +97,10 @@ function HeatmapLoading() {
         <h2>正在读取 7 天热力图</h2>
         <p>正在通过本地 Bridge 汇总最近 7 天、每天 24 小时的活跃分布。</p>
       </div>
-      <div className="dashboard-skeleton" aria-hidden="true">
-        <span /><span /><span /><span />
+      <div className="heatmap-skeleton" aria-hidden="true">
+        {Array.from({ length: 7 * 24 }, (_, i) => (
+          <span key={i} />
+        ))}
       </div>
     </section>
   );
@@ -151,27 +157,29 @@ function HeatmapReady({
   readonly locale?: Locale;
 }) {
   const navigate = useNavigate();
-  const rows = useMemo(() => buildGrid(heatmap), [heatmap]);
+  const grid = useMemo(() => buildGrid(heatmap), [heatmap]);
+  const { dates, today, rows } = grid;
+  const dateCount = dates.length;
   const gridRef = useRef<HTMLDivElement>(null);
   const [focusPosition, setFocusPosition] = useState<HeatmapFocusPosition>(() =>
-    getDefaultFocusPosition(rows, currentHour));
-  const activeFocus = clampFocusPosition(focusPosition, rows.length);
+    getDefaultFocusPosition(grid, currentHour));
+  const activeFocus = clampFocusPosition(focusPosition, heatmapHourCount, dateCount);
 
   const focusCell = (next: HeatmapFocusPosition) => {
     setFocusPosition(next);
     gridRef.current
-      ?.querySelector<HTMLElement>(`[data-row="${String(next.rowIndex)}"][data-hour="${String(next.hourIndex)}"]`)
+      ?.querySelector<HTMLElement>(`[data-hour="${String(next.hourIndex)}"][data-date="${String(next.dateIndex)}"]`)
       ?.focus();
   };
 
-  const openCell = (row: HeatmapGridRow, hourIndex: number) => {
-    void navigate(getTimelineHourPath(row.date, hourIndex));
+  const openCell = (date: string, hour: number) => {
+    void navigate(getTimelineHourPath(date, hour));
   };
 
-  const onCellKeyDown = (event: KeyboardEvent<HTMLDivElement>, rowIndex: number, hourIndex: number) => {
+  const onCellKeyDown = (event: KeyboardEvent<HTMLDivElement>, hourIndex: number, dateIndex: number) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      openCell(rows[rowIndex], hourIndex);
+      openCell(dates[dateIndex], rows[hourIndex].hour);
       return;
     }
     const key = event.key as HeatmapFocusKey;
@@ -183,7 +191,7 @@ function HeatmapReady({
       case 'Home':
       case 'End':
         event.preventDefault();
-        focusCell(moveFocus({ rowIndex, hourIndex }, key, rows.length));
+        focusCell(moveFocus({ hourIndex, dateIndex }, key, heatmapHourCount, dateCount));
         break;
       default:
         break;
@@ -201,16 +209,25 @@ function HeatmapReady({
           </div>
         </div>
         <div className="heatmap-wrap">
+          <div className="heatmap-time-labels" aria-hidden="true">
+            <span>凌晨</span>
+            <span>上午</span>
+            <span>下午</span>
+            <span>晚上</span>
+          </div>
+          <div className="heatmap-main">
           <div className="heatmap-grid__cols" aria-hidden="true">
-            <span className="heatmap-grid__corner" />
-            {Array.from({ length: heatmapColumnCount }, (_, hour) => (
+            {dates.map((date) => (
               <span
-                key={hour}
-                className={hour % 6 === 0
-                  ? 'heatmap-grid__col-label'
-                  : 'heatmap-grid__col-label heatmap-grid__col-label--minor'}
+                key={date}
+                className={date === today
+                  ? 'heatmap-grid__col-label heatmap-grid__col-label--today'
+                  : 'heatmap-grid__col-label'}
               >
-                {hour % 3 === 0 || hour === 23 ? hour : ''}
+                <span className="heatmap-grid__col-weekday">
+                  {date === today ? '今天' : formatWeekdayLabel(date, locale)}
+                </span>
+                <span className="heatmap-grid__col-date">{formatShortDate(date)}</span>
               </span>
             ))}
           </div>
@@ -220,53 +237,51 @@ function HeatmapReady({
             aria-label="最近 7 天每小时活跃热力图"
             ref={gridRef}
           >
-            {rows.map((row, rowIndex) => (
+            {rows.map((row, hourIndex) => {
+              const rowClass = isHourPeriodEnd(row.hour)
+                ? 'heatmap-grid__row heatmap-grid__row--divider'
+                : 'heatmap-grid__row';
+              return (
               <div
-                key={row.date}
-                className={row.isToday ? 'heatmap-grid__row heatmap-grid__row--today' : 'heatmap-grid__row'}
+                key={row.hour}
+                className={rowClass}
                 role="row"
               >
-                <span className="heatmap-grid__row-label" role="rowheader">
-                  <strong>{row.isToday ? '今天' : formatWeekdayLabel(row.date, locale)}</strong>
-                  <span>{formatMonthDayLabel(row.date, locale)}</span>
-                </span>
-                {row.cells.map((cell, hourIndex) => {
+                {row.cells.map((cell, dateIndex) => {
                   const label = getCellLabel(cell, locale);
-                  const isFocus = rowIndex === activeFocus.rowIndex && hourIndex === activeFocus.hourIndex;
-                  const isNow = row.isToday && cell.hour === currentHour;
+                  const isFocus = hourIndex === activeFocus.hourIndex && dateIndex === activeFocus.dateIndex;
+                  const isNow = dates[dateIndex] === today && cell.hour === currentHour;
                   const className = isNow
                     ? `heatmap-grid__cell heatmap-level--${String(normalizeIntensityLevel(cell.intensityLevel))} heatmap-grid__cell--now`
                     : `heatmap-grid__cell heatmap-level--${String(normalizeIntensityLevel(cell.intensityLevel))}`;
+                  const tooltipClassName = [
+                    'heatmap-grid__tooltip',
+                    hourIndex === 0 ? 'heatmap-grid__tooltip--below' : '',
+                    dateIndex === 0 ? 'heatmap-grid__tooltip--align-start' : '',
+                    dateIndex === dateCount - 1 ? 'heatmap-grid__tooltip--align-end' : '',
+                  ].filter(Boolean).join(' ');
                   return (
                     <div
                       key={cell.hour}
                       className={className}
                       role="gridcell"
                       tabIndex={isFocus ? 0 : -1}
-                      data-row={rowIndex}
                       data-hour={hourIndex}
-                      title={label}
+                      data-date={dateIndex}
                       aria-label={label}
                       aria-current={isNow ? 'date' : undefined}
-                      onClick={() => { openCell(row, hourIndex); }}
-                      onKeyDown={(event) => { onCellKeyDown(event, rowIndex, hourIndex); }}
-                    />
+                      onClick={() => { openCell(dates[dateIndex], row.hour); }}
+                      onKeyDown={(event) => { onCellKeyDown(event, hourIndex, dateIndex); }}
+                    >
+                      <span className={tooltipClassName} role="tooltip" aria-hidden="true">
+                        {label}
+                      </span>
+                    </div>
                   );
                 })}
               </div>
-            ))}
+            );})}
           </div>
-          <div className="heatmap-legend">
-            <span className="heatmap-legend__title">活跃程度</span>
-            {heatmapIntensityLabels.map((text, level) => (
-              <span key={text} className="heatmap-legend__item">
-                <span
-                  className={`heatmap-legend__swatch heatmap-level--${String(level)}`}
-                  aria-hidden="true"
-                />
-                {text}
-              </span>
-            ))}
           </div>
         </div>
       </section>

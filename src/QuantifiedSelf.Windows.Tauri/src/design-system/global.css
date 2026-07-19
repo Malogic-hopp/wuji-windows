@@ -358,21 +358,34 @@ button, a[href] { -webkit-tap-highlight-color: transparent; }
 .heatmap-wrap { padding: var(--space-4) var(--space-5) var(--space-5); }
 .heatmap-grid__cols, .heatmap-grid__row {
   display: grid;
-  grid-template-columns: minmax(72px, auto) repeat(24, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   align-items: center;
   gap: var(--space-1);
 }
-.heatmap-grid { display: grid; gap: var(--space-1); margin-top: var(--space-1); }
+.heatmap-grid { display: grid; gap: var(--space-1); margin-top: var(--space-1); flex: 1; min-width: 0; }
 .heatmap-grid__cols { color: var(--color-text-muted); font-size: .72em; }
 .heatmap-grid__col-label { overflow: hidden; text-align: center; white-space: nowrap; }
-.heatmap-grid__row-label { display: grid; min-width: 0; gap: 1px; padding-right: var(--space-2); }
-.heatmap-grid__row-label strong { font-size: .8em; }
-.heatmap-grid__row-label span { overflow: hidden; color: var(--color-text-muted); font-size: .72em; text-overflow: ellipsis; white-space: nowrap; }
 .heatmap-grid__row--today .heatmap-grid__row-label strong { color: var(--color-accent); }
+.heatmap-grid__row--divider { border-bottom: 2px solid var(--color-border); margin-bottom: -2px; }
+.heatmap-time-labels {
+  display: grid;
+  grid-template-rows: repeat(4, 1fr);
+  gap: 0;
+  padding-top: 2.2em;
+  padding-right: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: .78em;
+  white-space: nowrap;
+}
+.heatmap-time-labels span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .heatmap-grid__cell {
   width: 100%;
   min-width: 0;
-  aspect-ratio: 1;
+  height: 20px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -508,7 +521,7 @@ button, a[href] { -webkit-tap-highlight-color: transparent; }
   .timeline-track__scale span:nth-child(even) { visibility: hidden; }
   .timeline-track-wrap { padding-inline: var(--space-4); }
   .heatmap-wrap { padding-inline: var(--space-4); }
-  .heatmap-grid__cols, .heatmap-grid__row { grid-template-columns: minmax(40px, auto) repeat(24, minmax(0, 1fr)); }
+  .heatmap-grid__cols, .heatmap-grid__row { grid-template-columns: repeat(7, minmax(0, 1fr)); }
   .heatmap-grid__row-label span { display: none; }
   .heatmap-grid__col-label--minor { visibility: hidden; }
   .heatmap-legend { flex-wrap: wrap; }

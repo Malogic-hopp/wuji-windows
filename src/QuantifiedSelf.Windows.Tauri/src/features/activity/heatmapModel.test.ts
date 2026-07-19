@@ -44,15 +44,16 @@ function heatmap(cells: ReadonlyArray<ActivityHeatmapCell>, today = '2026-07-19'
 }
 
 describe('heatmapModel buildGrid 与 cellAt', () => {
-  it('生成 7 行 × 24 格，日期升序、今天在最后并标记', () => {
-    const rows = buildGrid(heatmap(weekCells(dates)));
+  it('生成 24 行 × 7 列，小时从上到下 0→23，日期升序从左到右', () => {
+    const { dates: gridDates, today, rows } = buildGrid(heatmap(weekCells(dates)));
 
-    expect(rows).toHaveLength(7);
-    expect(rows.map((row) => row.date)).toEqual(dates);
-    expect(rows[6].isToday).toBe(true);
-    expect(rows.slice(0, 6).every((row) => !row.isToday)).toBe(true);
-    expect(rows.every((row) => row.cells.length === 24)).toBe(true);
-    expect(rows[0].cells.map((item) => item.hour)).toEqual(Array.from({ length: 24 }, (_, hour) => hour));
+    expect(gridDates).toEqual(dates);
+    expect(today).toBe('2026-07-19');
+    expect(rows).toHaveLength(24);
+    expect(rows[0].hour).toBe(0);
+    expect(rows[23].hour).toBe(23);
+    expect(rows.every((row) => row.cells.length === dates.length)).toBe(true);
+    expect(rows[0].cells.map((c) => c.date)).toEqual(dates);
   });
 
   it('乱序输入按日期排序，缺失格子按零补齐', () => {
@@ -60,23 +61,17 @@ describe('heatmapModel buildGrid 与 cellAt', () => {
       cell('2026-07-19', 5, { activeSamples: 3, activeRatioPercent: 50, intensityLevel: 2 }),
       cell('2026-07-18', 2),
     ];
-    const rows = buildGrid(heatmap(sparse));
+    const { dates: gridDates, rows } = buildGrid(heatmap(sparse));
 
-    expect(rows.map((row) => row.date)).toEqual(['2026-07-18', '2026-07-19']);
-    expect(rows[0].cells).toHaveLength(24);
-    expect(rows[1].cells[5]).toMatchObject({ activeSamples: 3, intensityLevel: 2 });
-    expect(rows[1].cells[4]).toMatchObject({
-      date: '2026-07-19',
-      hour: 4,
-      activeSamples: 0,
-      activeRatioPercent: 0,
-      intensityLevel: 0,
-    });
+    expect(gridDates).toEqual(['2026-07-18', '2026-07-19']);
+    expect(rows).toHaveLength(24);
+    expect(rows[5].cells[0]).toMatchObject({ date: '2026-07-18', hour: 5, activeSamples: 0 });
+    expect(rows[5].cells[1]).toMatchObject({ activeSamples: 3, intensityLevel: 2 });
+    expect(rows[2].cells[0]).toMatchObject({ date: '2026-07-18', hour: 2 });
   });
 
   it('cellAt 按日期与小时精确查找', () => {
     const cells = weekCells(dates);
-
     expect(cellAt(cells, '2026-07-19', 14)).toMatchObject({ date: '2026-07-19', hour: 14 });
     expect(cellAt(cells, '2026-07-20', 0)).toBeUndefined();
     expect(cellAt(cells, '2026-07-19', 24)).toBeUndefined();
@@ -84,7 +79,7 @@ describe('heatmapModel buildGrid 与 cellAt', () => {
 });
 
 describe('heatmapModel isHeatmapEmpty', () => {
-  it('全部活跃采样为 0 时判定为空（含只有空闲采样的情况）', () => {
+  it('全部活跃采样为 0 时判定为空', () => {
     expect(isHeatmapEmpty(heatmap(weekCells(dates)))).toBe(true);
     expect(isHeatmapEmpty(heatmap([cell('2026-07-19', 9, { idleSamples: 8 })]))).toBe(true);
   });
@@ -95,77 +90,87 @@ describe('heatmapModel isHeatmapEmpty', () => {
 });
 
 describe('heatmapModel 焦点移动', () => {
-  it('方向键在网格内移动', () => {
-    const start = { rowIndex: 3, hourIndex: 10 };
+  const hourCount = 24;
+  const dateCount = 7;
 
-    expect(moveFocus(start, 'ArrowLeft', 7)).toEqual({ rowIndex: 3, hourIndex: 9 });
-    expect(moveFocus(start, 'ArrowRight', 7)).toEqual({ rowIndex: 3, hourIndex: 11 });
-    expect(moveFocus(start, 'ArrowUp', 7)).toEqual({ rowIndex: 2, hourIndex: 10 });
-    expect(moveFocus(start, 'ArrowDown', 7)).toEqual({ rowIndex: 4, hourIndex: 10 });
+  it('方向键：↑↓ 改小时，←→ 改日期', () => {
+    const start = { hourIndex: 14, dateIndex: 3 };
+    expect(moveFocus(start, 'ArrowUp', hourCount, dateCount)).toEqual({ hourIndex: 13, dateIndex: 3 });
+    expect(moveFocus(start, 'ArrowDown', hourCount, dateCount)).toEqual({ hourIndex: 15, dateIndex: 3 });
+    expect(moveFocus(start, 'ArrowLeft', hourCount, dateCount)).toEqual({ hourIndex: 14, dateIndex: 2 });
+    expect(moveFocus(start, 'ArrowRight', hourCount, dateCount)).toEqual({ hourIndex: 14, dateIndex: 4 });
   });
 
   it('边缘收敛不环绕', () => {
-    expect(moveFocus({ rowIndex: 0, hourIndex: 0 }, 'ArrowLeft', 7)).toEqual({ rowIndex: 0, hourIndex: 0 });
-    expect(moveFocus({ rowIndex: 0, hourIndex: 0 }, 'ArrowUp', 7)).toEqual({ rowIndex: 0, hourIndex: 0 });
-    expect(moveFocus({ rowIndex: 6, hourIndex: 23 }, 'ArrowRight', 7)).toEqual({ rowIndex: 6, hourIndex: 23 });
-    expect(moveFocus({ rowIndex: 6, hourIndex: 23 }, 'ArrowDown', 7)).toEqual({ rowIndex: 6, hourIndex: 23 });
+    expect(moveFocus({ hourIndex: 0, dateIndex: 0 }, 'ArrowUp', hourCount, dateCount))
+      .toEqual({ hourIndex: 0, dateIndex: 0 });
+    expect(moveFocus({ hourIndex: 23, dateIndex: 6 }, 'ArrowDown', hourCount, dateCount))
+      .toEqual({ hourIndex: 23, dateIndex: 6 });
+    expect(moveFocus({ hourIndex: 0, dateIndex: 0 }, 'ArrowLeft', hourCount, dateCount))
+      .toEqual({ hourIndex: 0, dateIndex: 0 });
+    expect(moveFocus({ hourIndex: 23, dateIndex: 6 }, 'ArrowRight', hourCount, dateCount))
+      .toEqual({ hourIndex: 23, dateIndex: 6 });
   });
 
-  it('Home/End 跳到行首与行尾', () => {
-    expect(moveFocus({ rowIndex: 2, hourIndex: 7 }, 'Home', 7)).toEqual({ rowIndex: 2, hourIndex: 0 });
-    expect(moveFocus({ rowIndex: 2, hourIndex: 7 }, 'End', 7)).toEqual({ rowIndex: 2, hourIndex: 23 });
+  it('Home/End 跳到该行最早/最晚日期', () => {
+    expect(moveFocus({ hourIndex: 14, dateIndex: 3 }, 'Home', hourCount, dateCount))
+      .toEqual({ hourIndex: 14, dateIndex: 0 });
+    expect(moveFocus({ hourIndex: 14, dateIndex: 3 }, 'End', hourCount, dateCount))
+      .toEqual({ hourIndex: 14, dateIndex: 6 });
   });
 
-  it('clampFocusPosition 收敛越界位置', () => {
-    expect(clampFocusPosition({ rowIndex: 9, hourIndex: 30 }, 7)).toEqual({ rowIndex: 6, hourIndex: 23 });
-    expect(clampFocusPosition({ rowIndex: -1, hourIndex: -5 }, 7)).toEqual({ rowIndex: 0, hourIndex: 0 });
+  it('clampFocusPosition 收敛越界', () => {
+    expect(clampFocusPosition({ hourIndex: 30, dateIndex: 10 }, hourCount, dateCount))
+      .toEqual({ hourIndex: 23, dateIndex: 6 });
+    expect(clampFocusPosition({ hourIndex: -1, dateIndex: -5 }, hourCount, dateCount))
+      .toEqual({ hourIndex: 0, dateIndex: 0 });
   });
 });
 
 describe('heatmapModel 默认焦点', () => {
-  it('默认聚焦今天的当前本地小时', () => {
-    const rows = buildGrid(heatmap(weekCells(dates)));
-
-    expect(getDefaultFocusPosition(rows, 14)).toEqual({ rowIndex: 6, hourIndex: 14 });
+  it('聚焦今天的日期列 + 当前小时行', () => {
+    const grid = buildGrid(heatmap(weekCells(dates)));
+    expect(getDefaultFocusPosition(grid, 14)).toEqual({ hourIndex: 14, dateIndex: 6 });
   });
 
-  it('当前小时越界时收敛到 0-23', () => {
-    const rows = buildGrid(heatmap(weekCells(dates)));
-
-    expect(getDefaultFocusPosition(rows, 99)).toEqual({ rowIndex: 6, hourIndex: 23 });
-    expect(getDefaultFocusPosition(rows, -3)).toEqual({ rowIndex: 6, hourIndex: 0 });
+  it('小时越界收敛', () => {
+    const grid = buildGrid(heatmap(weekCells(dates)));
+    expect(getDefaultFocusPosition(grid, 99)).toEqual({ hourIndex: 23, dateIndex: 6 });
+    expect(getDefaultFocusPosition(grid, -3)).toEqual({ hourIndex: 0, dateIndex: 6 });
   });
 
-  it('没有今天行时退到最后一格', () => {
-    const rows = buildGrid(heatmap(weekCells(dates), '2026-07-25'));
+  it('没有今天列时退到最后一列', () => {
+    const grid = buildGrid(heatmap(weekCells(dates), '2026-07-25'));
+    expect(getDefaultFocusPosition(grid, 14)).toEqual({ hourIndex: 14, dateIndex: 6 });
+  });
 
-    expect(getDefaultFocusPosition(rows, 14)).toEqual({ rowIndex: 6, hourIndex: 23 });
-    expect(getDefaultFocusPosition([], 14)).toEqual({ rowIndex: 0, hourIndex: 23 });
+  it('空数据退到零位置', () => {
+    const grid = buildGrid(heatmap([]));
+    expect(getDefaultFocusPosition(grid, 14)).toEqual({ hourIndex: 14, dateIndex: 0 });
   });
 });
 
 describe('heatmapModel 标签与地址', () => {
-  it('无采样格子给出事实说明', () => {
+  it('无采样格子给出说明', () => {
     expect(getCellLabel(cell('2026-07-19', 14), 'zh-CN')).toBe('7月19日 14时，无采样记录');
   });
 
-  it('有采样格子包含占比、活跃采样数与强度等级', () => {
+  it('有采样格子包含占比、采样数、强度', () => {
     const label = getCellLabel(
       cell('2026-07-19', 14, { activeSamples: 120, idleSamples: 30, activeRatioPercent: 62, intensityLevel: 3 }),
       'zh-CN',
     );
-
     expect(label).toBe('7月19日 14时，活跃占比 62%，活跃采样 120 条，活跃程度 高');
   });
 
-  it('强度等级防御性收敛，不重新推导', () => {
+  it('强度等级防御性收敛', () => {
     expect(normalizeIntensityLevel(0)).toBe(0);
     expect(normalizeIntensityLevel(4)).toBe(4);
     expect(normalizeIntensityLevel(9)).toBe(4);
     expect(normalizeIntensityLevel(-2)).toBe(0);
   });
 
-  it('构造时间线跳转地址', () => {
+  it('时间线跳转地址', () => {
     expect(getTimelineHourPath('2026-07-19', 14)).toBe('/activity/timeline?date=2026-07-19&hour=14');
     expect(getTimelineHourPath('2026-07-13', 0)).toBe('/activity/timeline?date=2026-07-13&hour=0');
   });

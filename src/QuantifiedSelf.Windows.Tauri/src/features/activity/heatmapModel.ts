@@ -1,7 +1,7 @@
 import type { ActivityHeatmapCell, ActivityHeatmapResult } from '../../bridge/contracts';
 import { formatCount, formatHourLabel, formatMonthDayLabel } from './activityFormatting';
 
-export const heatmapColumnCount = 24;
+export const heatmapHourCount = 24;
 
 export type ActivityHeatmapViewState =
   | { readonly kind: 'loading' }
@@ -9,16 +9,22 @@ export type ActivityHeatmapViewState =
   | { readonly kind: 'ready'; readonly heatmap: ActivityHeatmapResult; readonly updatedAt: number }
   | { readonly kind: 'error'; readonly message: string };
 
+/** 一行 = 一个小时，cells 按日期升序排列。 */
 export interface HeatmapGridRow {
-  readonly date: string;
-  readonly isToday: boolean;
-  /** 固定 24 格，按小时 0-23 排列，缺失小时已按零补齐。 */
+  readonly hour: number;
   readonly cells: ReadonlyArray<ActivityHeatmapCell>;
 }
 
+/** buildGrid 返回的完整网格。dates 升序、rows 从上到下 0→23 时。 */
+export interface HeatmapGridData {
+  readonly dates: ReadonlyArray<string>;
+  readonly today: string;
+  readonly rows: ReadonlyArray<HeatmapGridRow>;
+}
+
 export interface HeatmapFocusPosition {
-  readonly rowIndex: number;
   readonly hourIndex: number;
+  readonly dateIndex: number;
 }
 
 export type HeatmapFocusKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | 'Home' | 'End';
@@ -36,15 +42,15 @@ export function cellAt(cells: ReadonlyArray<ActivityHeatmapCell>, date: string, 
   return cells.find((cell) => cell.date === date && cell.hour === hour);
 }
 
-/** 按本地日期升序分行（最早在上、今天在下），缺失小时按零补齐为完整 24 格。 */
-export function buildGrid(heatmap: ActivityHeatmapResult): ReadonlyArray<HeatmapGridRow> {
+/** 转置：24 行（小时 0→23 从上到下）、N 列（日期升序从左到右）。 */
+export function buildGrid(heatmap: ActivityHeatmapResult): HeatmapGridData {
   const dates = [...new Set(heatmap.cells.map((cell) => cell.date))].sort();
-  return dates.map((date) => ({
-    date,
-    isToday: date === heatmap.today,
-    cells: Array.from({ length: heatmapColumnCount }, (_, hour) =>
+  const rows = Array.from({ length: heatmapHourCount }, (_, hour) => ({
+    hour,
+    cells: dates.map((date) =>
       cellAt(heatmap.cells, date, hour) ?? createZeroCell(date, hour)),
   }));
+  return { dates, today: heatmap.today, rows };
 }
 
 /** 服务端强度等级防御性收敛到 0-4，避免异常值击穿样式与文案下标。 */
@@ -52,49 +58,51 @@ export function normalizeIntensityLevel(level: number) {
   return clamp(Math.trunc(level), 0, heatmapIntensityLabels.length - 1);
 }
 
-/** 默认聚焦格：今天的当前本地小时；没有今天行时退到最后一格。 */
+/** 默认聚焦格：今天的日期列 + 当前小时行。没有今天列时退到最后一列。 */
 export function getDefaultFocusPosition(
-  rows: ReadonlyArray<HeatmapGridRow>,
+  grid: HeatmapGridData,
   currentHour: number,
 ): HeatmapFocusPosition {
-  const todayRowIndex = rows.findIndex((row) => row.isToday);
-  if (todayRowIndex < 0) {
-    return { rowIndex: Math.max(0, rows.length - 1), hourIndex: heatmapColumnCount - 1 };
-  }
-  return { rowIndex: todayRowIndex, hourIndex: clamp(Math.trunc(currentHour), 0, heatmapColumnCount - 1) };
+  const todayIndex = grid.dates.indexOf(grid.today);
+  const dateCount = Math.max(1, grid.dates.length);
+  const dateIndex = todayIndex < 0 ? dateCount - 1 : todayIndex;
+  return {
+    hourIndex: clamp(Math.trunc(currentHour), 0, heatmapHourCount - 1),
+    dateIndex: clamp(dateIndex, 0, dateCount - 1),
+  };
 }
 
-/** 方向键移动（边缘收敛、不环绕），Home/End 跳到行首/行尾。 */
+/** 方向键移动（边缘收敛、不环绕）。↑↓ 改小时，←→ 改日期，Home/End 跳到行首/行尾。 */
 export function moveFocus(
   position: HeatmapFocusPosition,
   key: HeatmapFocusKey,
-  rowCount: number,
-  columnCount = heatmapColumnCount,
+  hourCount: number,
+  dateCount: number,
 ): HeatmapFocusPosition {
   switch (key) {
     case 'ArrowUp':
-      return clampFocusPosition({ rowIndex: position.rowIndex - 1, hourIndex: position.hourIndex }, rowCount, columnCount);
+      return clampFocusPosition({ hourIndex: position.hourIndex - 1, dateIndex: position.dateIndex }, hourCount, dateCount);
     case 'ArrowDown':
-      return clampFocusPosition({ rowIndex: position.rowIndex + 1, hourIndex: position.hourIndex }, rowCount, columnCount);
+      return clampFocusPosition({ hourIndex: position.hourIndex + 1, dateIndex: position.dateIndex }, hourCount, dateCount);
     case 'ArrowLeft':
-      return clampFocusPosition({ rowIndex: position.rowIndex, hourIndex: position.hourIndex - 1 }, rowCount, columnCount);
+      return clampFocusPosition({ hourIndex: position.hourIndex, dateIndex: position.dateIndex - 1 }, hourCount, dateCount);
     case 'ArrowRight':
-      return clampFocusPosition({ rowIndex: position.rowIndex, hourIndex: position.hourIndex + 1 }, rowCount, columnCount);
+      return clampFocusPosition({ hourIndex: position.hourIndex, dateIndex: position.dateIndex + 1 }, hourCount, dateCount);
     case 'Home':
-      return clampFocusPosition({ rowIndex: position.rowIndex, hourIndex: 0 }, rowCount, columnCount);
+      return clampFocusPosition({ hourIndex: position.hourIndex, dateIndex: 0 }, hourCount, dateCount);
     case 'End':
-      return clampFocusPosition({ rowIndex: position.rowIndex, hourIndex: columnCount - 1 }, rowCount, columnCount);
+      return clampFocusPosition({ hourIndex: position.hourIndex, dateIndex: dateCount - 1 }, hourCount, dateCount);
   }
 }
 
 export function clampFocusPosition(
   position: HeatmapFocusPosition,
-  rowCount: number,
-  columnCount = heatmapColumnCount,
+  hourCount: number,
+  dateCount: number,
 ): HeatmapFocusPosition {
   return {
-    rowIndex: clamp(position.rowIndex, 0, Math.max(0, rowCount - 1)),
-    hourIndex: clamp(position.hourIndex, 0, Math.max(0, columnCount - 1)),
+    hourIndex: clamp(position.hourIndex, 0, Math.max(0, hourCount - 1)),
+    dateIndex: clamp(position.dateIndex, 0, Math.max(0, dateCount - 1)),
   };
 }
 
@@ -110,6 +118,23 @@ export function getCellLabel(cell: ActivityHeatmapCell, locale?: Locale): string
   }
   const intensity = heatmapIntensityLabels[normalizeIntensityLevel(cell.intensityLevel)];
   return `${prefix}，活跃占比 ${formatCount(cell.activeRatioPercent, locale)}%，活跃采样 ${formatCount(cell.activeSamples, locale)} 条，活跃程度 ${intensity}`;
+}
+
+const timeOfDayLabels: Record<number, string> = {
+  3: '凌晨',
+  9: '上午',
+  15: '下午',
+  21: '晚上',
+};
+
+/** 时段标签只在每段中间显示：3时→凌晨，9时→上午，15时→下午，21时→晚上。 */
+export function getTimeOfDayLabel(hour: number): string {
+  return timeOfDayLabels[clamp(Math.trunc(hour), 0, 23)] ?? '';
+}
+
+/** 该小时是时段最后一行（5/11/17），下方应画分隔线。 */
+export function isHourPeriodEnd(hour: number): boolean {
+  return hour === 5 || hour === 11 || hour === 17;
 }
 
 /** 跳转到时间线对应日期小时的地址（热力图格子与今日页柱状图共用）。 */

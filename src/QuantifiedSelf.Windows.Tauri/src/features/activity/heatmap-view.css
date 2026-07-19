@@ -1,0 +1,248 @@
+/* ============================================================
+ * HeatmapView 美化样式
+ * ============================================================ */
+
+/* ---------- 布局：替换原内联 style ---------- */
+
+.dashboard-module .heatmap-wrap {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.dashboard-module .heatmap-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- 格子微交互 ---------- */
+
+.heatmap-grid .heatmap-grid__cell {
+  position: relative;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background-color 0.4s ease;
+}
+
+.heatmap-grid .heatmap-grid__cell:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 2px var(--color-accent);
+  z-index: 2;
+}
+
+.heatmap-grid .heatmap-grid__cell:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+/* ---------- 自定义 Tooltip ---------- */
+/* 通过修饰类按格子位置（首行/首列/末列）调整弹出方向，防止溢出卡片被裁剪。
+ * hover 时格子 scale(1.25)，tooltip 用 scale(0.8) 反向抵消，避免气泡随格子放大。 */
+
+.heatmap-grid__tooltip {
+  --tooltip-x: -50%;
+  --tooltip-y-rest: 4px;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translate(var(--tooltip-x), var(--tooltip-y-rest)) scale(0.8);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-surface);
+  background: color-mix(in srgb, var(--color-text) 92%, transparent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 30;
+}
+
+.heatmap-grid__tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: color-mix(in srgb, var(--color-text) 92%, transparent);
+}
+
+.heatmap-grid__cell:hover .heatmap-grid__tooltip,
+.heatmap-grid__cell:focus-visible .heatmap-grid__tooltip {
+  opacity: 1;
+  transform: translate(var(--tooltip-x), 0) scale(0.8);
+}
+
+/* 首行：翻转到格子下方 */
+.heatmap-grid__tooltip--below {
+  --tooltip-y-rest: -4px;
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+.heatmap-grid__tooltip--below::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: color-mix(in srgb, var(--color-text) 92%, transparent);
+}
+
+/* 最左列：左对齐，箭头挪到左侧 */
+.heatmap-grid__tooltip--align-start {
+  --tooltip-x: 0px;
+  left: 0;
+}
+
+.heatmap-grid__tooltip--align-start::after {
+  left: 14px;
+}
+
+/* 最右列：右对齐，箭头挪到右侧 */
+.heatmap-grid__tooltip--align-end {
+  --tooltip-x: 0px;
+  left: auto;
+  right: 0;
+}
+
+.heatmap-grid__tooltip--align-end::after {
+  left: auto;
+  right: 14px;
+}
+
+/* ---------- 当前时刻格子：脉冲光环 ---------- */
+
+.heatmap-grid .heatmap-grid__cell--now {
+  box-shadow: 0 0 0 2px var(--color-accent);
+  animation: heatmap-now-pulse 2s ease-in-out infinite;
+}
+
+@keyframes heatmap-now-pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heatmap-grid .heatmap-grid__cell--now {
+    animation: none;
+  }
+  .heatmap-grid .heatmap-grid__cell {
+    transition: none;
+  }
+  .heatmap-grid__tooltip {
+    transition: none;
+  }
+}
+
+/* ---------- 列标签 ---------- */
+
+.heatmap-grid__cols .heatmap-grid__col-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.heatmap-grid__cols .heatmap-grid__col-label--today {
+  color: var(--color-accent);
+  font-weight: 650;
+}
+
+.heatmap-grid__col-date {
+  font-size: 10px;
+  line-height: 1.2;
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+/* ---------- 图例：少 □□□□□ 多 ---------- */
+
+.dashboard-module .heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.heatmap-legend__scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.heatmap-legend__edge {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.heatmap-legend__scale .heatmap-legend__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+/* ---------- Loading 骨架屏 ---------- */
+
+.dashboard-state .heatmap-skeleton {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  width: 100%;
+  max-width: 420px;
+  margin-top: var(--space-2);
+}
+
+.heatmap-skeleton span {
+  height: 7px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-text-muted) 18%, transparent);
+  animation: heatmap-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.heatmap-skeleton span:nth-child(7n + 1) { animation-delay: 0ms; }
+.heatmap-skeleton span:nth-child(7n + 2) { animation-delay: 80ms; }
+.heatmap-skeleton span:nth-child(7n + 3) { animation-delay: 160ms; }
+.heatmap-skeleton span:nth-child(7n + 4) { animation-delay: 240ms; }
+.heatmap-skeleton span:nth-child(7n + 5) { animation-delay: 320ms; }
+.heatmap-skeleton span:nth-child(7n + 6) { animation-delay: 400ms; }
+.heatmap-skeleton span:nth-child(7n + 7) { animation-delay: 480ms; }
+
+@keyframes heatmap-skeleton-shimmer {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heatmap-skeleton span { animation: none; }
+}
+
+/* ---------- 时段分隔：凌晨 / 上午 / 下午 / 晚上 ---------- */
+
+/* 时段末尾行：下方贯穿网格的细分隔线 + 加大间距 */
+.heatmap-grid .heatmap-grid__row--divider {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text-muted) 25%, transparent);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* 左侧时段标签：四等分网格高度，各自垂直居中，对齐时段带 */
+.heatmap-time-labels {
+  display: grid;
+  grid-template-rows: repeat(4, 1fr);
+  padding-top: 34px;
+}
+
+.heatmap-time-labels span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
