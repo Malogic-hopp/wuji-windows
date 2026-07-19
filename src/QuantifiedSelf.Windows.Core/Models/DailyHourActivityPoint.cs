@@ -51,4 +51,11 @@ public sealed class DailyHourActivityPoint
     /// this single hour. Set by the calculator after all buckets are built.
     /// </summary>
     public double ActiveIntensity { get; set; }
+
+    /// <summary>
+    /// Discrete 0–4 intensity level bucketed from <see cref="ActiveIntensity"/>
+    /// with the shared thresholds (0, 0.25, 0.5, 0.75). Set by the calculator so
+    /// every frontend renders the same five color levels without rebucketing.
+    /// </summary>
+    public int IntensityLevel { get; set; }
 }

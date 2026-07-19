@@ -39,6 +39,44 @@ public sealed class ApplicationUseCaseTests
     }
 
     [Fact]
+    public void HourActivityHeatmapCalculator_BucketsIntensityLevelsWithSharedThresholds()
+    {
+        var today = new DateOnly(2026, 7, 16);
+        var samples = new List<ForegroundSample>();
+        AddActiveSamples(samples, today, hour: 0, count: 4); // busiest hour: intensity 1.00 → level 4
+        AddActiveSamples(samples, today, hour: 1, count: 1); // intensity 0.25 → level 1
+        AddActiveSamples(samples, today, hour: 2, count: 2); // intensity 0.50 → level 2
+        AddActiveSamples(samples, today, hour: 3, count: 3); // intensity 0.75 → level 3
+
+        var points = HourActivityHeatmapCalculator.Compute(samples, today);
+        var dateStr = today.ToString("yyyy-MM-dd");
+
+        Assert.Equal(4, points.Single(p => p.Date == dateStr && p.Hour == 0).IntensityLevel);
+        Assert.Equal(1, points.Single(p => p.Date == dateStr && p.Hour == 1).IntensityLevel);
+        Assert.Equal(2, points.Single(p => p.Date == dateStr && p.Hour == 2).IntensityLevel);
+        Assert.Equal(3, points.Single(p => p.Date == dateStr && p.Hour == 3).IntensityLevel);
+        // No samples: intensity 0 → level 0.
+        Assert.Equal(0, points.Single(p => p.Date == dateStr && p.Hour == 4).IntensityLevel);
+    }
+
+    private static void AddActiveSamples(
+        List<ForegroundSample> samples,
+        DateOnly date,
+        int hour,
+        int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            var localTime = date.ToDateTime(new TimeOnly(hour, i * 10), DateTimeKind.Local);
+            samples.Add(new ForegroundSample
+            {
+                SampleTimeUtc = localTime.ToUniversalTime(),
+                ActivityState = "Active"
+            });
+        }
+    }
+
+    [Fact]
     public void InsightSuggestionEngine_InsufficientDataReturnsNoSuggestion()
     {
         var result = InsightSuggestionEngine.Generate(

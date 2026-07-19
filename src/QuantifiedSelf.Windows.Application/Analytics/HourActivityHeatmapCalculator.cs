@@ -80,9 +80,20 @@ public static class HourActivityHeatmapCalculator
             foreach (var point in result)
             {
                 point.ActiveIntensity = (double)point.ActiveSamples / maxActive;
+                point.IntensityLevel = GetIntensityLevel(point.ActiveIntensity);
             }
         }
 
         return result;
     }
+
+    // Shared five-level bucketing thresholds; frontends must not rederive these.
+    private static int GetIntensityLevel(double intensity) => intensity switch
+    {
+        <= 0 => 0,
+        <= 0.25 => 1,
+        <= 0.5 => 2,
+        <= 0.75 => 3,
+        _ => 4
+    };
 }

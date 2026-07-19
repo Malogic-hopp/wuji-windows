@@ -89,3 +89,10 @@ public interface IHourActivityHeatmapService
 {
     Task<HourActivityHeatmapResult> GetHeatmapAsync(CancellationToken cancellationToken = default);
 }
+
+public interface ITimelineDataService
+{
+    Task<TimelineResult> GetTimelineAsync(
+        DateOnly localDate,
+        CancellationToken cancellationToken = default);
+}
