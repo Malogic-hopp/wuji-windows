@@ -3,6 +3,7 @@ import type {
   ActivityTimelineGap,
   ActivityTimelineResult,
   ActivityTimelineSession,
+  ActivityTimelineSubSegment,
 } from '../../bridge/contracts';
 import { formatLocalDateParam } from './activityFormatting';
 
@@ -19,7 +20,9 @@ export interface TrackSegmentGeometry {
 
 export type TimelineTrackSegment =
   | { readonly kind: 'session'; readonly session: ActivityTimelineSession; readonly key: string }
-  | { readonly kind: 'gap'; readonly gap: ActivityTimelineGap; readonly key: string };
+  | { readonly kind: 'gap'; readonly gap: ActivityTimelineGap; readonly key: string }
+  | { readonly kind: 'activeSubSegment'; readonly session: ActivityTimelineSession; readonly subSegment: ActivityTimelineSubSegment; readonly key: string }
+  | { readonly kind: 'idleSubSegment'; readonly session: ActivityTimelineSession; readonly subSegment: ActivityTimelineSubSegment; readonly key: string };
 
 export type TimelineTrackSegmentWithGeometry = TimelineTrackSegment & TrackSegmentGeometry;
 
@@ -96,21 +99,37 @@ export function getTrackSegmentGeometry(startedAtUtc: string, endedAtUtc: string
   return { leftPercent, widthPercent };
 }
 
-/** 会话与间隔合并为按开始位置排序的轨道片段序列。 */
+/** 会话与间隔合并为按开始位置排序的轨道片段序列，会话内部按 active/idle 子段拆分。 */
 export function buildTrackSegments(timeline: ActivityTimelineResult): ReadonlyArray<TimelineTrackSegmentWithGeometry> {
-  const sessions = timeline.sessions.map((session): TimelineTrackSegmentWithGeometry => ({
-    kind: 'session',
-    session,
-    ...getTrackSegmentGeometry(session.startedAtUtc, session.endedAtUtc ?? session.startedAtUtc),
-    key: `session-${session.startedAtUtc}`,
-  }));
+  const sessionSegments = timeline.sessions.flatMap((session) => {
+    const subSegments = session.subSegments;
+    // Degrade: no sub-segments — render the whole session as one block (backward compatible).
+    if (subSegments.length === 0) {
+      return [{
+        kind: 'session' as const,
+        session,
+        ...getTrackSegmentGeometry(session.startedAtUtc, session.endedAtUtc ?? session.startedAtUtc),
+        key: `session-${session.startedAtUtc}`,
+      }];
+    }
+    return subSegments.map((sub, index): TimelineTrackSegmentWithGeometry => {
+      const kind = sub.isActive ? 'activeSubSegment' as const : 'idleSubSegment' as const;
+      return {
+        kind,
+        session,
+        subSegment: sub,
+        ...getTrackSegmentGeometry(sub.startedAtUtc, sub.endedAtUtc),
+        key: `sub-${session.startedAtUtc}-${String(index)}`,
+      };
+    });
+  });
   const gaps = timeline.gaps.map((gap): TimelineTrackSegmentWithGeometry => ({
     kind: 'gap',
     gap,
     ...getTrackSegmentGeometry(gap.startedAtUtc, gap.endedAtUtc),
     key: `gap-${gap.startedAtUtc}`,
   }));
-  return [...sessions, ...gaps].sort((a, b) => a.leftPercent - b.leftPercent);
+  return [...sessionSegments, ...gaps].sort((a, b) => a.leftPercent - b.leftPercent);
 }
 
 /** 小时定位高亮带的几何（覆盖该小时整段），越界收敛到 0-23。 */

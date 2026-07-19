@@ -31,6 +31,7 @@ function session(overrides: Partial<ActivityTimelineSession>): ActivityTimelineS
     idleSeconds: 600,
     unknownSeconds: 0,
     closeReason: 'other',
+    subSegments: [],
     ...overrides,
   };
 }
@@ -147,6 +148,59 @@ describe('timelineModel 轨道片段', () => {
     expect(segments).toHaveLength(1);
     expect(segments[0]?.kind).toBe('session');
     expect(segments[0]?.widthPercent).toBe(0);
+  });
+
+  it('有子段时将会话展开为 active/idle 子段，保持时间顺序', () => {
+    const s9 = localIso(2026, 7, 19, 9, 0);
+    const s9_15 = localIso(2026, 7, 19, 9, 15);
+    const s9_45 = localIso(2026, 7, 19, 9, 45);
+    const s10 = localIso(2026, 7, 19, 10, 0);
+
+    const result = timeline({
+      sessions: [
+        session({
+          startedAtUtc: s9,
+          endedAtUtc: s10,
+          subSegments: [
+            { startedAtUtc: s9, endedAtUtc: s9_15, isActive: true },
+            { startedAtUtc: s9_15, endedAtUtc: s9_45, isActive: false },
+            { startedAtUtc: s9_45, endedAtUtc: s10, isActive: true },
+          ],
+        }),
+      ],
+    });
+
+    const segments = buildTrackSegments(result);
+    expect(segments.map((item) => item.kind)).toEqual([
+      'activeSubSegment',
+      'idleSubSegment',
+      'activeSubSegment',
+    ]);
+    // Active sub-segments retain the session reference.
+    for (const seg of segments) {
+      if (seg.kind === 'activeSubSegment' || seg.kind === 'idleSubSegment') {
+        expect(seg.session.appName).toBe('Visual Studio Code');
+      }
+    }
+  });
+
+  it('无子段时退化到整段 session 渲染（向后兼容）', () => {
+    const result = timeline({
+      sessions: [session({ subSegments: [] })],
+    });
+    expect(buildTrackSegments(result).map((item) => item.kind)).toEqual(['session']);
+  });
+
+  it('纯活跃 session 只有一个 active 子段时也正确展开', () => {
+    const s9 = localIso(2026, 7, 19, 9, 0);
+    const s10 = localIso(2026, 7, 19, 10, 0);
+    const result = timeline({
+      sessions: [session({
+        idleSeconds: 0,
+        subSegments: [{ startedAtUtc: s9, endedAtUtc: s10, isActive: true }],
+      })],
+    });
+    expect(buildTrackSegments(result).map((item) => item.kind)).toEqual(['activeSubSegment']);
   });
 
   it('无会话且无间隔时判定为空', () => {

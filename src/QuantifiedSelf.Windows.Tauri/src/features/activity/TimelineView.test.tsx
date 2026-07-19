@@ -18,6 +18,7 @@ function session(overrides: Partial<ActivityTimelineSession>): ActivityTimelineS
     idleSeconds: 600,
     unknownSeconds: 0,
     closeReason: 'paused',
+    subSegments: [],
     ...overrides,
   };
 }
@@ -132,8 +133,62 @@ describe('TimelineView 时间线与会话列表', () => {
     expect(screen.getByText('暂停与空闲间隔')).toBeInTheDocument();
   });
 
-  it('提供 hour 参数时渲染高亮带与定位说明', () => {
-    const { container, unmount } = render(
+  it('会话带子段时轨道按 active/idle 拆分渲染，子段不进 Tab 序且 tooltip 含时长', () => {
+    const splitTimeline: ActivityTimelineResult = {
+      ...timeline,
+      sessions: [
+        session({
+          subSegments: [
+            {
+              startedAtUtc: localIso(2026, 7, 19, 9, 0),
+              endedAtUtc: localIso(2026, 7, 19, 9, 30),
+              isActive: true,
+            },
+            {
+              startedAtUtc: localIso(2026, 7, 19, 9, 30),
+              endedAtUtc: localIso(2026, 7, 19, 10, 0),
+              isActive: false,
+            },
+            {
+              startedAtUtc: localIso(2026, 7, 19, 10, 0),
+              endedAtUtc: localIso(2026, 7, 19, 10, 30),
+              isActive: true,
+            },
+          ],
+        }),
+      ],
+      gaps: [],
+    };
+    const { container } = render(
+      <TimelineView
+        state={{ kind: 'ready', timeline: splitTimeline, updatedAt: Date.now() }}
+        refreshing={false}
+        dateParam="2026-07-19"
+        todayParam="2026-07-20"
+        onSelectDate={vi.fn()}
+        onRefresh={vi.fn()}
+        locale="zh-CN"
+      />,
+    );
+
+    const sessionSegments = container.querySelectorAll<HTMLElement>('.timeline-track__segment--session');
+    expect(sessionSegments).toHaveLength(2);
+    // 子段仅作视觉呈现：不进 Tab 序、对读屏隐藏，完整信息在下方会话列表。
+    for (const segment of sessionSegments) {
+      expect(segment).not.toHaveAttribute('tabindex');
+      expect(segment).toHaveAttribute('aria-hidden', 'true');
+      expect(segment.title).toContain('活跃');
+      expect(segment.title).toContain('时长 30分钟');
+    }
+
+    const idleSegments = container.querySelectorAll<HTMLElement>('.timeline-track__segment--gap');
+    expect(idleSegments).toHaveLength(1);
+    expect(idleSegments[0]).toHaveAttribute('aria-hidden', 'true');
+    expect(idleSegments[0].title).toContain('Visual Studio Code 空闲');
+    expect(idleSegments[0].title).toContain('时长 30分钟');
+  });
+
+  it('提供 hour 参数时渲染高亮带与定位说明', () => {    const { container, unmount } = render(
       <TimelineView
         state={{ kind: 'ready', timeline, updatedAt: Date.now() }}
         refreshing={false}

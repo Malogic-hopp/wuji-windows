@@ -335,7 +335,46 @@ function TimelineSegment({
     );
   }
 
+  if (segment.kind === 'idleSubSegment') {
+    const { session, subSegment } = segment;
+    const range = formatSessionTimeRange(subSegment.startedAtUtc, subSegment.endedAtUtc, locale);
+    const blockSeconds = Math.round(
+      (new Date(subSegment.endedAtUtc).getTime() - new Date(subSegment.startedAtUtc).getTime()) / 1000,
+    );
+    return (
+      <li
+        className="timeline-track__segment timeline-track__segment--gap"
+        style={style}
+        title={`${session.appName} 空闲，${range}，时长 ${formatDuration(blockSeconds, locale)}`}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  // kind === 'session' or kind === 'activeSubSegment'
   const { session } = segment;
+  const subSegment = segment.kind === 'activeSubSegment' ? segment.subSegment : undefined;
+
+  if (subSegment !== undefined) {
+    // 子段拆分后轨道仅作视觉呈现（完整信息见下方会话列表），子段不进 Tab 序，
+    // 避免一个长会话产生几十个停留点；tooltip 保留应用名、时间范围与时长。
+    const range = formatSessionTimeRange(subSegment.startedAtUtc, subSegment.endedAtUtc, locale);
+    const blockSeconds = Math.round(
+      (new Date(subSegment.endedAtUtc).getTime() - new Date(subSegment.startedAtUtc).getTime()) / 1000,
+    );
+    const className = session.isOpen
+      ? 'timeline-track__segment timeline-track__segment--session timeline-track__segment--open'
+      : 'timeline-track__segment timeline-track__segment--session';
+    return (
+      <li
+        className={className}
+        style={style}
+        title={`${session.appName} 活跃，${range}，时长 ${formatDuration(blockSeconds, locale)}`}
+        aria-hidden="true"
+      />
+    );
+  }
+
   const range = formatSessionTimeRange(session.startedAtUtc, session.endedAtUtc, locale);
   const label = `${session.appName}，${range}，时长 ${formatDuration(session.totalSeconds, locale)}${session.isOpen ? '，进行中' : ''}`;
   const className = session.isOpen
