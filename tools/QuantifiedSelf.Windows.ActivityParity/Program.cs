@@ -257,6 +257,36 @@ internal static class ActivityParityProgram
         }
 
         Add(checks, "今日时间线空档逐段一致", gapsMatch, $"gaps={gaps.Length}");
+
+        var subSegmentsMatch = wpf.Segments.Count == sessions.Length;
+        var subSegmentCount = 0;
+        for (var index = 0; subSegmentsMatch && index < wpf.Segments.Count; index++)
+        {
+            var left = wpf.Segments[index];
+            var rightSubSegments = sessions[index].GetProperty("subSegments").EnumerateArray().ToArray();
+            subSegmentCount += rightSubSegments.Length;
+            // Sub-segment boundaries derive from sample times (static), but the last
+            // block of an open session ends at "now" — same drift as the session end.
+            var tolerance = left.IsOpen ? toleranceSeconds : 0;
+            subSegmentsMatch = left.SubSegments.Count == rightSubSegments.Length;
+            for (var sub = 0; subSegmentsMatch && sub < left.SubSegments.Count; sub++)
+            {
+                var leftSub = left.SubSegments[sub];
+                var rightSub = rightSubSegments[sub];
+                subSegmentsMatch = NearlyEqual(
+                        leftSub.StartedAtUtc.ToUniversalTime(),
+                        ParseUtc(rightSub.GetProperty("startedAtUtc").GetString()!),
+                        tolerance)
+                    && NearlyEqual(
+                        leftSub.EndedAtUtc.ToUniversalTime(),
+                        ParseUtc(rightSub.GetProperty("endedAtUtc").GetString()!),
+                        tolerance)
+                    && leftSub.IsActive == rightSub.GetProperty("isActive").GetBoolean();
+            }
+        }
+
+        Add(checks, "今日时间线子段逐段一致", subSegmentsMatch,
+            $"subSegments={subSegmentCount}, 未关闭段容差=±{toleranceSeconds}s");
     }
 
     private static void CompareHeatmap(
