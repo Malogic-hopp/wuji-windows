@@ -2,9 +2,14 @@
  * HeatmapView 美化样式
  * ============================================================ */
 
-/* ---------- 布局：替换原内联 style ---------- */
+/* ---------- 布局：图例在上，标签 + 网格在下 ---------- */
 
 .dashboard-module .heatmap-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-module .heatmap-body {
   display: flex;
   gap: var(--space-1);
 }
@@ -132,9 +137,11 @@
   .heatmap-grid .heatmap-grid__cell--now {
     animation: none;
   }
+
   .heatmap-grid .heatmap-grid__cell {
     transition: none;
   }
+
   .heatmap-grid__tooltip {
     transition: none;
   }
@@ -163,14 +170,14 @@
   font-weight: 400;
 }
 
-/* ---------- 图例：少 □□□□□ 多 ---------- */
+/* ---------- 图例：少 □□□□□ 多（位于 wrap 内网格上方，随 wrap 内边距与网格左缘对齐） ---------- */
 
 .dashboard-module .heatmap-legend {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
 .heatmap-legend__scale {
@@ -185,10 +192,11 @@
 }
 
 .heatmap-legend__scale .heatmap-legend__swatch {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-text-muted) 55%, transparent);
   border-radius: var(--radius-sm);
-  display: inline-block;
+  box-sizing: border-box;
 }
 
 /* ---------- Loading 骨架屏 ---------- */

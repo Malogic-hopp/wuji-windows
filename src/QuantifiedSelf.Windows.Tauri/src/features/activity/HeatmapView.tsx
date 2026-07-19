@@ -16,6 +16,7 @@ import {
   getDefaultFocusPosition,
   getTimelineHourPath,
   heatmapHourCount,
+  heatmapIntensityLabels,
   isHourPeriodEnd,
   moveFocus,
   normalizeIntensityLevel,
@@ -209,6 +210,22 @@ function HeatmapReady({
           </div>
         </div>
         <div className="heatmap-wrap">
+          <div className="heatmap-legend">
+            <span className="heatmap-legend__title">活跃程度</span>
+            <span className="heatmap-legend__scale">
+              <span className="heatmap-legend__edge">少</span>
+              {heatmapIntensityLabels.map((text, level) => (
+                <span
+                  key={text}
+                  className={`heatmap-legend__swatch heatmap-level--${String(level)}`}
+                  role="img"
+                  aria-label={text}
+                />
+              ))}
+              <span className="heatmap-legend__edge">多</span>
+            </span>
+          </div>
+          <div className="heatmap-body">
           <div className="heatmap-time-labels" aria-hidden="true">
             <span>凌晨</span>
             <span>上午</span>
@@ -281,6 +298,7 @@ function HeatmapReady({
                 })}
               </div>
             );})}
+          </div>
           </div>
           </div>
         </div>

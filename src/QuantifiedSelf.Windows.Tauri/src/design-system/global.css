@@ -398,7 +398,7 @@ button, a[href] { -webkit-tap-highlight-color: transparent; }
 .heatmap-level--2 { background: color-mix(in srgb, var(--color-accent) 38%, var(--color-accent-soft)); }
 .heatmap-level--3 { background: color-mix(in srgb, var(--color-accent) 64%, var(--color-accent-soft)); }
 .heatmap-level--4 { background: var(--color-accent); }
-.heatmap-legend { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); color: var(--color-text-muted); font-size: .8em; }
+.heatmap-legend { display: flex; align-items: center; gap: var(--space-3); margin-top: 0; color: var(--color-text-muted); font-size: .8em; }
 .heatmap-legend__title { font-weight: 700; }
 .heatmap-legend__item { display: inline-flex; align-items: center; gap: var(--space-1); }
 .heatmap-legend__swatch { width: var(--space-3); height: var(--space-3); flex: 0 0 auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
