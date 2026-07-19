@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "packageKind": "dev-preview",
+  "version": "0.1.0",
+  "channel": "dev",
+  "configuration": "Release",
+  "runtimeIdentifier": "win-x64",
+  "targetTriple": "x86_64-pc-windows-msvc",
+  "tauri": {
+    "identifier": "com.wuji.windows.dev",
+    "productName": "吾迹（开发预览）",
+    "shellExecutableName": "quantified-self-windows-tauri.exe"
+  },
+  "output": {
+    "root": "artifacts/tauri-dev-preview/0.1.0/win-x64",
+    "appDirectory": "app",
+    "manifestFile": "package-manifest.json",
+    "contractFile": "package-layout.v1.json"
+  },
+  "layout": {
+    "bridgeDirectory": "bridge",
+    "bridgeExecutable": "bridge/QuantifiedSelf.Windows.Client.Bridge-x86_64-pc-windows-msvc.exe",
+    "agentDirectory": "bridge/Agent",
+    "agentExecutable": "bridge/Agent/QuantifiedSelf.Windows.Agent.exe"
+  }
+}

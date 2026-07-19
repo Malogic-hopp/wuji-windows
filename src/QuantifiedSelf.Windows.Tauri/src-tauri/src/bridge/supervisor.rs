@@ -741,8 +741,16 @@ pub fn fixed_bridge_path() -> PathBuf {
             .and_then(|path| path.parent().map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("."))
             .join("bridge")
-            .join("QuantifiedSelf.Windows.Client.Bridge.exe")
+            .join(packaged_bridge_executable_name())
     }
+}
+
+#[cfg(any(not(debug_assertions), test))]
+fn packaged_bridge_executable_name() -> String {
+    format!(
+        "QuantifiedSelf.Windows.Client.Bridge-{}.exe",
+        env!("TAURI_ENV_TARGET_TRIPLE")
+    )
 }
 
 #[cfg(test)]
@@ -754,6 +762,14 @@ mod tests {
     fn fixed_path_cannot_be_supplied_by_webview() {
         let path = fixed_bridge_path();
         assert!(path.ends_with("sidecars/bridge/QuantifiedSelf.Windows.Client.Bridge.exe"));
+    }
+
+    #[test]
+    fn packaged_bridge_name_uses_the_cargo_target_triple() {
+        assert_eq!(
+            packaged_bridge_executable_name(),
+            "QuantifiedSelf.Windows.Client.Bridge-x86_64-pc-windows-msvc.exe"
+        );
     }
 
     #[test]
