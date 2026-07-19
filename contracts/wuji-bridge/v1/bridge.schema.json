@@ -512,6 +512,31 @@
         "other"
       ]
     },
+    "ActivityTimelineSubSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startedAtUtc",
+        "endedAtUtc",
+        "isActive"
+      ],
+      "properties": {
+        "startedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC start of this sub-segment."
+        },
+        "endedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC end of this sub-segment."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "True for active interaction, false for idle or unknown."
+        }
+      }
+    },
     "ActivityTimelineSession": {
       "type": "object",
       "additionalProperties": false,
@@ -523,7 +548,8 @@
         "activeSeconds",
         "idleSeconds",
         "unknownSeconds",
-        "closeReason"
+        "closeReason",
+        "subSegments"
       ],
       "properties": {
         "startedAtUtc": {
@@ -559,6 +585,13 @@
         },
         "closeReason": {
           "$ref": "#/$defs/ActivityTimelineCloseReason"
+        },
+        "subSegments": {
+          "type": "array",
+          "description": "Time-ordered sub-segments partitioning the session into alternating active/idle blocks for track rendering.",
+          "items": {
+            "$ref": "#/$defs/ActivityTimelineSubSegment"
+          }
         }
       }
     },

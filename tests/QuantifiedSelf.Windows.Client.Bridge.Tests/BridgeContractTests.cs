@@ -213,8 +213,11 @@ public sealed class BridgeContractTests
             ["AverageActiveSeconds", "ComparisonToAverageText", "ComparisonToYesterdayText", "Days", "WeekToDateText"],
             typeof(ActivityWeeklyTrendResult).GetProperties().Select(property => property.Name).Order().ToArray());
         Assert.Equal(
-            ["ActiveSeconds", "AppName", "CloseReason", "EndedAtUtc", "IdleSeconds", "IsOpen", "StartedAtUtc", "TotalSeconds", "UnknownSeconds"],
+            ["ActiveSeconds", "AppName", "CloseReason", "EndedAtUtc", "IdleSeconds", "IsOpen", "StartedAtUtc", "SubSegments", "TotalSeconds", "UnknownSeconds"],
             typeof(ActivityTimelineSession).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["EndedAtUtc", "IsActive", "StartedAtUtc"],
+            typeof(ActivityTimelineSubSegment).GetProperties().Select(property => property.Name).Order().ToArray());
         Assert.Equal(
             ["DurationSeconds", "EndedAtUtc", "StartedAtUtc"],
             typeof(ActivityTimelineGap).GetProperties().Select(property => property.Name).Order().ToArray());

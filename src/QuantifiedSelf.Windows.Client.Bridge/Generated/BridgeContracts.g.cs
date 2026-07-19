@@ -138,6 +138,14 @@ public sealed class ActivityTimelineSession
     public required long IdleSeconds { get; init; }
     public required long UnknownSeconds { get; init; }
     public required ActivityTimelineCloseReason CloseReason { get; init; }
+    public required IReadOnlyList<ActivityTimelineSubSegment> SubSegments { get; init; }
+}
+
+public sealed class ActivityTimelineSubSegment
+{
+    public required string StartedAtUtc { get; init; }
+    public required string EndedAtUtc { get; init; }
+    public required bool IsActive { get; init; }
 }
 
 public sealed class ActivityTrendDay

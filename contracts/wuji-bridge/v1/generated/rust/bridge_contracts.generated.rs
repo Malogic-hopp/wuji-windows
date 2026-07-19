@@ -153,6 +153,15 @@ pub struct ActivityTimelineSession {
     pub idle_seconds: i64,
     pub unknown_seconds: i64,
     pub close_reason: ActivityTimelineCloseReason,
+    pub sub_segments: Vec<ActivityTimelineSubSegment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityTimelineSubSegment {
+    pub started_at_utc: String,
+    pub ended_at_utc: String,
+    pub is_active: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

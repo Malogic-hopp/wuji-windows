@@ -112,6 +112,13 @@ export interface ActivityTimelineSession {
   readonly idleSeconds: number;
   readonly unknownSeconds: number;
   readonly closeReason: ActivityTimelineCloseReason;
+  readonly subSegments: ReadonlyArray<ActivityTimelineSubSegment>;
+}
+
+export interface ActivityTimelineSubSegment {
+  readonly startedAtUtc: string;
+  readonly endedAtUtc: string;
+  readonly isActive: boolean;
 }
 
 export interface ActivityTrendDay {

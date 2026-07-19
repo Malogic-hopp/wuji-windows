@@ -180,7 +180,18 @@ internal static class BridgeActivityMapper
             ActiveSeconds = NonNegative(segment.ActiveSeconds),
             IdleSeconds = NonNegative(segment.IdleSeconds),
             UnknownSeconds = NonNegative(segment.UnknownSeconds),
-            CloseReason = ToCloseReason(segment.CloseReason)
+            CloseReason = ToCloseReason(segment.CloseReason),
+            SubSegments = segment.SubSegments.Select(ToTimelineSubSegment).ToArray()
+        };
+    }
+
+    private static ActivityTimelineSubSegment ToTimelineSubSegment(ActivitySubSegment source)
+    {
+        return new ActivityTimelineSubSegment
+        {
+            StartedAtUtc = FormatUtc(source.StartedAtUtc),
+            EndedAtUtc = FormatUtc(source.EndedAtUtc),
+            IsActive = source.IsActive
         };
     }
 

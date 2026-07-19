@@ -9,6 +9,7 @@ export type {
   ActivityTimelineGap,
   ActivityTimelineResult,
   ActivityTimelineSession,
+  ActivityTimelineSubSegment,
   ActivityTrendDay,
   ActivityWeeklyTrendResult,
   AgentState,
