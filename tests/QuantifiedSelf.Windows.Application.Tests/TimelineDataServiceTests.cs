@@ -164,14 +164,171 @@ public sealed class TimelineDataServiceTests
         Assert.Empty(result.Gaps);
     }
 
+    [Fact]
+    public async Task GetTimelineAsync_PureActiveSession_SingleActiveSubSegmentWithoutSampleQuery()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var session = Session(Local(Today, 9, 0), Local(Today, 10, 0));
+        var samples = new FakeSampleQueryPort();
+        var service = CreateService([session], nowLocal, samples);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        var segment = Assert.Single(result.Segments);
+        var sub = Assert.Single(segment.SubSegments);
+        Assert.True(sub.IsActive);
+        Assert.Equal(segment.StartedAtUtc, sub.StartedAtUtc);
+        Assert.Equal(segment.EndedAtUtc, sub.EndedAtUtc);
+        // No idle/unknown time → the sample table is never queried.
+        Assert.Equal(0, samples.InvocationCount);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_MixedSession_SplitsIntoTilingSubSegmentsAtSampleMidpoints()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var session = new AppSession
+        {
+            StartedAtUtc = Local(Today, 10, 0).ToUniversalTime(),
+            EndedAtUtc = Local(Today, 11, 0).ToUniversalTime(),
+            ProcessName = "Weixin",
+            DisplayName = "微信",
+            TotalDurationSeconds = 3600,
+            ActiveDurationSeconds = 1200,
+            IdleDurationSeconds = 2400,
+            CloseReason = "ProcessChanged"
+        };
+        var samples = new FakeSampleQueryPort(
+        [
+            Sample(Local(Today, 10, 0), "Active"),
+            Sample(Local(Today, 10, 10), "Active"),
+            Sample(Local(Today, 10, 20), "Idle"),
+            Sample(Local(Today, 10, 40), "Idle"),
+            Sample(Local(Today, 10, 50), "Active")
+        ]);
+        var service = CreateService([session], nowLocal, samples);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        var segment = Assert.Single(result.Segments);
+        Assert.Equal(3, segment.SubSegments.Count);
+        // Transition midpoints: A→I between 10:10/10:20 → 10:15; I→A between 10:40/10:50 → 10:45.
+        Assert.Equal(Local(Today, 10, 0).ToUniversalTime(), segment.SubSegments[0].StartedAtUtc);
+        Assert.Equal(Local(Today, 10, 15).ToUniversalTime(), segment.SubSegments[0].EndedAtUtc);
+        Assert.True(segment.SubSegments[0].IsActive);
+        Assert.Equal(Local(Today, 10, 15).ToUniversalTime(), segment.SubSegments[1].StartedAtUtc);
+        Assert.Equal(Local(Today, 10, 45).ToUniversalTime(), segment.SubSegments[1].EndedAtUtc);
+        Assert.False(segment.SubSegments[1].IsActive);
+        Assert.Equal(Local(Today, 10, 45).ToUniversalTime(), segment.SubSegments[2].StartedAtUtc);
+        Assert.Equal(Local(Today, 11, 0).ToUniversalTime(), segment.SubSegments[2].EndedAtUtc);
+        Assert.True(segment.SubSegments[2].IsActive);
+        // Sub-segments tile the session exactly: first start, shared boundaries, last end.
+        Assert.Equal(segment.StartedAtUtc, segment.SubSegments[0].StartedAtUtc);
+        Assert.Equal(segment.EndedAtUtc, segment.SubSegments[2].EndedAtUtc);
+        Assert.Equal(1, samples.InvocationCount);
+        Assert.Equal("Weixin", samples.LastProcessName);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_AllIdleAndUnknownSamples_SingleInactiveSubSegment()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var session = new AppSession
+        {
+            StartedAtUtc = Local(Today, 9, 0).ToUniversalTime(),
+            EndedAtUtc = Local(Today, 10, 0).ToUniversalTime(),
+            ProcessName = "Weixin",
+            DisplayName = "微信",
+            TotalDurationSeconds = 3600,
+            ActiveDurationSeconds = 0,
+            IdleDurationSeconds = 3000,
+            UnknownDurationSeconds = 600,
+            CloseReason = "ProcessChanged"
+        };
+        var samples = new FakeSampleQueryPort(
+        [
+            Sample(Local(Today, 9, 0), "Idle"),
+            Sample(Local(Today, 9, 30), "Unknown")
+        ]);
+        var service = CreateService([session], nowLocal, samples);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        var sub = Assert.Single(result.Segments[0].SubSegments);
+        Assert.False(sub.IsActive);
+        Assert.Equal(Local(Today, 9, 0).ToUniversalTime(), sub.StartedAtUtc);
+        Assert.Equal(Local(Today, 10, 0).ToUniversalTime(), sub.EndedAtUtc);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_NoSamplesForIdleSession_DegradesToSingleActiveSubSegment()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var session = new AppSession
+        {
+            StartedAtUtc = Local(Today, 9, 0).ToUniversalTime(),
+            EndedAtUtc = Local(Today, 10, 0).ToUniversalTime(),
+            ProcessName = "Code",
+            DisplayName = "Code",
+            TotalDurationSeconds = 3600,
+            ActiveDurationSeconds = 1800,
+            IdleDurationSeconds = 1800,
+            CloseReason = "ProcessChanged"
+        };
+        var service = CreateService([session], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        var sub = Assert.Single(result.Segments[0].SubSegments);
+        Assert.True(sub.IsActive);
+        Assert.Equal(Local(Today, 9, 0).ToUniversalTime(), sub.StartedAtUtc);
+        Assert.Equal(Local(Today, 10, 0).ToUniversalTime(), sub.EndedAtUtc);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_SampleQueryLimitCoversWholeSessionDuration()
+    {
+        var nowLocal = Local(Today, 23, 0);
+        // 6-hour session at default 3s sampling ≈ 7,200 samples; the old flat 15,000
+        // cap would truncate a >12.5h session — the limit must scale with duration.
+        var session = new AppSession
+        {
+            StartedAtUtc = Local(Today, 10, 0).ToUniversalTime(),
+            EndedAtUtc = Local(Today, 16, 0).ToUniversalTime(),
+            ProcessName = "Code",
+            DisplayName = "Code",
+            TotalDurationSeconds = 21600,
+            ActiveDurationSeconds = 10800,
+            IdleDurationSeconds = 10800,
+            CloseReason = "ProcessChanged"
+        };
+        var samples = new FakeSampleQueryPort([Sample(Local(Today, 10, 0), "Idle")]);
+        var service = CreateService([session], nowLocal, samples);
+
+        await service.GetTimelineAsync(Today);
+
+        Assert.True(samples.LastLimit >= 21600);
+    }
+
     private static TimelineDataService CreateService(
         IReadOnlyList<AppSession> sessions,
-        DateTime nowLocal)
+        DateTime nowLocal,
+        FakeSampleQueryPort? samples = null)
     {
         return new TimelineDataService(
             new FakeSessionQueryPort(sessions),
+            samples ?? new FakeSampleQueryPort(),
             new FixedTimeProvider(new DateTimeOffset(nowLocal.ToUniversalTime())));
     }
+
+    private static ForegroundSample Sample(DateTime timeLocal, string activityState) =>
+        new()
+        {
+            SampleTimeUtc = timeLocal.ToUniversalTime(),
+            ProcessName = "Code",
+            ActivityState = activityState
+        };
+
 
     private static DateTime Local(DateOnly date, int hour, int minute) =>
         date.ToDateTime(new TimeOnly(hour, minute), DateTimeKind.Local);
@@ -199,6 +356,33 @@ public sealed class TimelineDataServiceTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class FakeSampleQueryPort(IReadOnlyList<ForegroundSample>? samples = null) : ISampleQueryPort
+    {
+        public int InvocationCount { get; private set; }
+
+        public int LastLimit { get; private set; }
+
+        public string? LastProcessName { get; private set; }
+
+        public Task<IReadOnlyList<ForegroundSample>> GetRecentSamplesAsync(
+            int limit,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ForegroundSample>> GetSamplesForProcessInRangeAsync(
+            DateTime startUtc,
+            DateTime endUtc,
+            string processName,
+            int limit,
+            CancellationToken cancellationToken = default)
+        {
+            InvocationCount++;
+            LastLimit = limit;
+            LastProcessName = processName;
+            return Task.FromResult(samples ?? (IReadOnlyList<ForegroundSample>)Array.Empty<ForegroundSample>());
+        }
     }
 
     private sealed class FakeSessionQueryPort(IReadOnlyList<AppSession> sessions) : ISessionQueryPort

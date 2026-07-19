@@ -84,7 +84,7 @@ public static class WujiClientFactory
         var weeklyTrend = new WeeklyTrendService(dailyStats);
         var heatmap = new HourActivityHeatmapService(activityQueries);
         var insights = new FocusInterruptionInsightService(activityQueries);
-        var timeline = new TimelineDataService(activityQueries);
+        var timeline = new TimelineDataService(activityQueries, activityQueries);
 
         var startupRegistry = new RegistryStartupRegistry();
         var commandBuilder = options.ProcessPathProvider is null

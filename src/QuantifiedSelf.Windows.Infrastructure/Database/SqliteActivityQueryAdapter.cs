@@ -61,6 +61,14 @@ public sealed class SqliteActivityQueryAdapter :
         CancellationToken cancellationToken = default) =>
         _sampleQueryService.GetRecentSamplesAsync(limit, cancellationToken);
 
+    public Task<IReadOnlyList<ForegroundSample>> GetSamplesForProcessInRangeAsync(
+        DateTime startUtc,
+        DateTime endUtc,
+        string processName,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        _sampleQueryService.GetSamplesForProcessInRangeAsync(startUtc, endUtc, processName, limit, cancellationToken);
+
     public Task<IReadOnlyList<AppSession>> GetRecentSessionsAsync(
         int limit,
         CancellationToken cancellationToken = default) =>

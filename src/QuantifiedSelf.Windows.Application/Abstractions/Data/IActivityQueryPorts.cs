@@ -30,6 +30,13 @@ public interface ISampleQueryPort
     Task<IReadOnlyList<ForegroundSample>> GetRecentSamplesAsync(
         int limit,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ForegroundSample>> GetSamplesForProcessInRangeAsync(
+        DateTime startUtc,
+        DateTime endUtc,
+        string processName,
+        int limit,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ISessionQueryPort

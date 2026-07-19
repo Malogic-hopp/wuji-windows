@@ -45,6 +45,15 @@ public sealed class TimelineSegment
     public long UnknownSeconds { get; init; }
 
     public string CloseReason { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Time-ordered sub-segments that partition this session into alternating
+    /// active and idle blocks on the 24-hour track. A session with no idle time
+    /// will have a single <see cref="ActivitySubSegment"/> with <c>IsActive=true</c>.
+    /// Blocks tile the session exactly (transition boundaries sit at the midpoint
+    /// between the samples of differing state), with no gaps or overlaps.
+    /// </summary>
+    public IReadOnlyList<QuantifiedSelf.Windows.Core.Models.ActivitySubSegment> SubSegments { get; init; } = [];
 }
 
 /// <summary>

@@ -11,19 +11,28 @@ namespace QuantifiedSelf.Windows.ApplicationLayer.Activity;
 /// (same rounding as DailyStatsService), sorted ascending by start, and the gaps
 /// between consecutive segments are precomputed — callers never derive day
 /// boundaries, effective ends, or pause intervals themselves.
+///
+/// Sessions with idle time are further split into alternating active/idle sub-segments
+/// using per-sample activity state from foreground_samples, so the 24-hour track
+/// visually distinguishes active use from idle periods within a session.
 /// </summary>
 public sealed class TimelineDataService : ITimelineDataService
 {
     private const int MaxSessionsPerDay = 1000;
+    private const int MinSampleQueryLimit = 15_000;
+    private const int MaxSampleQueryLimit = 500_000;
 
     private readonly ISessionQueryPort _sessionQueryPort;
+    private readonly ISampleQueryPort _sampleQueryPort;
     private readonly TimeProvider _timeProvider;
 
     public TimelineDataService(
         ISessionQueryPort sessionQueryPort,
+        ISampleQueryPort sampleQueryPort,
         TimeProvider? timeProvider = null)
     {
         _sessionQueryPort = sessionQueryPort ?? throw new ArgumentNullException(nameof(sessionQueryPort));
+        _sampleQueryPort = sampleQueryPort ?? throw new ArgumentNullException(nameof(sampleQueryPort));
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -66,6 +75,9 @@ public sealed class TimelineDataService : ITimelineDataService
             var (total, active, idle, unknown) = ScaleSessionDurations(
                 session, rangeStartUtc, rangeEndUtc, effectiveNow);
 
+            var subSegments = await BuildSubSegmentsAsync(
+                overlapStart, overlapEnd, idle, unknown, session.ProcessName, cancellationToken);
+
             segments.Add(new TimelineSegment
             {
                 StartedAtUtc = overlapStart,
@@ -79,7 +91,8 @@ public sealed class TimelineDataService : ITimelineDataService
                 ActiveSeconds = active,
                 IdleSeconds = idle,
                 UnknownSeconds = unknown,
-                CloseReason = session.CloseReason
+                CloseReason = session.CloseReason,
+                SubSegments = subSegments
             });
         }
 
@@ -111,6 +124,132 @@ public sealed class TimelineDataService : ITimelineDataService
             Gaps = gaps
         };
     }
+
+    private async Task<IReadOnlyList<ActivitySubSegment>> BuildSubSegmentsAsync(
+        DateTime segmentStart,
+        DateTime segmentEnd,
+        long idleSeconds,
+        long unknownSeconds,
+        string processName,
+        CancellationToken cancellationToken)
+    {
+        // Sessions with no idle/unknown time are entirely active — skip the query.
+        if (idleSeconds <= 0 && unknownSeconds <= 0)
+        {
+            return [SingleActiveSubSegment(segmentStart, segmentEnd)];
+        }
+
+        IReadOnlyList<ForegroundSample> samples;
+        try
+        {
+            samples = await _sampleQueryPort.GetSamplesForProcessInRangeAsync(
+                segmentStart,
+                segmentEnd,
+                processName,
+                ComputeSampleQueryLimit(segmentStart, segmentEnd),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // If sample query fails, degrade to a single active segment.
+            return [SingleActiveSubSegment(segmentStart, segmentEnd)];
+        }
+
+        if (samples.Count == 0)
+        {
+            return [SingleActiveSubSegment(segmentStart, segmentEnd)];
+        }
+
+        return GroupSamplesIntoSubSegments(samples, segmentStart, segmentEnd);
+    }
+
+    private static ActivitySubSegment SingleActiveSubSegment(DateTime segmentStart, DateTime segmentEnd) =>
+        new()
+        {
+            StartedAtUtc = segmentStart,
+            EndedAtUtc = segmentEnd,
+            IsActive = true
+        };
+
+    // Samples are written at most once per second (default every 3s), so a duration-sized
+    // limit keeps even a day-long session from being truncated mid-timeline; the cap only
+    // guards pathological inputs. If truncation ever occurs, the last block still extends
+    // to segmentEnd, so the track stays fully tiled (colored by the last observed state).
+    private static int ComputeSampleQueryLimit(DateTime segmentStart, DateTime segmentEnd)
+    {
+        var durationSeconds = (long)Math.Max(0, (segmentEnd - segmentStart).TotalSeconds);
+        return (int)Math.Clamp(durationSeconds + 600, MinSampleQueryLimit, MaxSampleQueryLimit);
+    }
+
+    /// <summary>
+    /// Groups time-ordered samples into contiguous sub-segments of alternating
+    /// active/idle state. Consecutive samples with the same effective activity
+    /// state are merged; a state transition splits the block at the midpoint
+    /// between the last sample of the previous state and the first sample of the
+    /// next state, so sub-segments tile the session with no gaps or overlaps.
+    /// </summary>
+    private static IReadOnlyList<ActivitySubSegment> GroupSamplesIntoSubSegments(
+        IReadOnlyList<ForegroundSample> samples,
+        DateTime segmentStart,
+        DateTime segmentEnd)
+    {
+        var subSegments = new List<ActivitySubSegment>();
+        DateTime blockStart = segmentStart;
+        DateTime previousSampleTime = segmentStart;
+        bool? currentIsActive = null;
+
+        foreach (var sample in samples)
+        {
+            var isActive = IsActiveState(sample.ActivityState);
+            if (currentIsActive == null)
+            {
+                currentIsActive = isActive;
+            }
+            else if (currentIsActive.Value != isActive)
+            {
+                // State transition: split at the midpoint between the two samples so
+                // consecutive blocks share their boundary exactly.
+                var boundary = previousSampleTime + TimeSpan.FromTicks(
+                    (sample.SampleTimeUtc - previousSampleTime).Ticks / 2);
+                subSegments.Add(new ActivitySubSegment
+                {
+                    StartedAtUtc = blockStart,
+                    EndedAtUtc = boundary,
+                    IsActive = currentIsActive.Value
+                });
+                blockStart = boundary;
+                currentIsActive = isActive;
+            }
+
+            previousSampleTime = sample.SampleTimeUtc;
+        }
+
+        // Close the last block.
+        if (currentIsActive != null)
+        {
+            subSegments.Add(new ActivitySubSegment
+            {
+                StartedAtUtc = blockStart,
+                EndedAtUtc = segmentEnd,
+                IsActive = currentIsActive.Value
+            });
+        }
+
+        // If we couldn't determine any state (shouldn't happen), create a single active segment.
+        if (subSegments.Count == 0)
+        {
+            subSegments.Add(SingleActiveSubSegment(segmentStart, segmentEnd));
+        }
+
+        return subSegments;
+    }
+
+    private static bool IsActiveState(string activityState) =>
+        string.Equals(activityState, "Active", StringComparison.OrdinalIgnoreCase);
 
     // Same overlap-fraction scaling and rounding as DailyStatsService.ScaleSessionDurations,
     // extended to the unknown-state duration.
