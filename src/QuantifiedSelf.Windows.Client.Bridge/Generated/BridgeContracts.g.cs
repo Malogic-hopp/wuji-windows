@@ -9,8 +9,59 @@ using System.Text.Json;
 
 namespace QuantifiedSelf.Windows.Client.Bridge.Generated;
 
+public sealed class ActivityDailyStatsResult
+{
+    public required string Date { get; init; }
+    public required bool IsToday { get; init; }
+    public required long TotalSeconds { get; init; }
+    public required long ActiveSeconds { get; init; }
+    public required long IdleSeconds { get; init; }
+    public required long UnknownSeconds { get; init; }
+    public required long SessionCount { get; init; }
+    public required long SampleCount { get; init; }
+    public required IReadOnlyList<ActivityHourlyBucket> Hours { get; init; }
+}
+
+public sealed class ActivityDateParams
+{
+    public required string Date { get; init; }
+}
+
+public sealed class ActivityGetHeatmapParams
+{
+}
+
 public sealed class ActivityGetOverviewParams
 {
+}
+
+public sealed class ActivityGetWeeklyTrendParams
+{
+}
+
+public sealed class ActivityHeatmapCell
+{
+    public required string Date { get; init; }
+    public required long Hour { get; init; }
+    public required long ActiveSamples { get; init; }
+    public required long IdleSamples { get; init; }
+    public required long UnknownSamples { get; init; }
+    public required long ActiveRatioPercent { get; init; }
+    public required long IntensityLevel { get; init; }
+}
+
+public sealed class ActivityHeatmapResult
+{
+    public required string Today { get; init; }
+    public required IReadOnlyList<ActivityHeatmapCell> Cells { get; init; }
+}
+
+public sealed class ActivityHourlyBucket
+{
+    public required long Hour { get; init; }
+    public required long ActiveSeconds { get; init; }
+    public required long IdleSeconds { get; init; }
+    public required long UnknownSeconds { get; init; }
 }
 
 public sealed class ActivityOverviewApp
@@ -50,6 +101,63 @@ public sealed class ActivityOverviewSummary
     public required long IdleDurationSeconds { get; init; }
     public required long UnknownDurationSeconds { get; init; }
     public required long SessionCount { get; init; }
+}
+
+public enum ActivityTimelineCloseReason
+{
+    Open,
+    ProcessChanged,
+    Paused,
+    Stopped,
+    Other,
+}
+
+public sealed class ActivityTimelineGap
+{
+    public required string StartedAtUtc { get; init; }
+    public required string EndedAtUtc { get; init; }
+    public required long DurationSeconds { get; init; }
+}
+
+public sealed class ActivityTimelineResult
+{
+    public required string Date { get; init; }
+    public required bool IsToday { get; init; }
+    public required IReadOnlyList<ActivityTimelineSession> Sessions { get; init; }
+    public required IReadOnlyList<ActivityTimelineGap> Gaps { get; init; }
+}
+
+public sealed class ActivityTimelineSession
+{
+    public required string StartedAtUtc { get; init; }
+    public string? EndedAtUtc { get; init; }
+    public required bool IsOpen { get; init; }
+    public required string AppName { get; init; }
+    public required long TotalSeconds { get; init; }
+    public required long ActiveSeconds { get; init; }
+    public required long IdleSeconds { get; init; }
+    public required long UnknownSeconds { get; init; }
+    public required ActivityTimelineCloseReason CloseReason { get; init; }
+}
+
+public sealed class ActivityTrendDay
+{
+    public required string Date { get; init; }
+    public required bool IsToday { get; init; }
+    public required long ActiveSeconds { get; init; }
+    public required long FocusSeconds { get; init; }
+    public required long ContextSwitchCount { get; init; }
+    public required long SessionCount { get; init; }
+    public required string TopAppName { get; init; }
+}
+
+public sealed class ActivityWeeklyTrendResult
+{
+    public required IReadOnlyList<ActivityTrendDay> Days { get; init; }
+    public required long AverageActiveSeconds { get; init; }
+    public required string ComparisonToAverageText { get; init; }
+    public required string ComparisonToYesterdayText { get; init; }
+    public required string WeekToDateText { get; init; }
 }
 
 public sealed class AgentGetStatusParams

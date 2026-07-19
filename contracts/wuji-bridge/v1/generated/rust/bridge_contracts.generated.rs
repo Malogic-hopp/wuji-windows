@@ -7,7 +7,65 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct ActivityDailyStatsResult {
+    pub date: String,
+    pub is_today: bool,
+    pub total_seconds: i64,
+    pub active_seconds: i64,
+    pub idle_seconds: i64,
+    pub unknown_seconds: i64,
+    pub session_count: i64,
+    pub sample_count: i64,
+    pub hours: Vec<ActivityHourlyBucket>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityDateParams {
+    pub date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityGetHeatmapParams {
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ActivityGetOverviewParams {
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityGetWeeklyTrendParams {
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityHeatmapCell {
+    pub date: String,
+    pub hour: i64,
+    pub active_samples: i64,
+    pub idle_samples: i64,
+    pub unknown_samples: i64,
+    pub active_ratio_percent: i64,
+    pub intensity_level: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityHeatmapResult {
+    pub today: String,
+    pub cells: Vec<ActivityHeatmapCell>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityHourlyBucket {
+    pub hour: i64,
+    pub active_seconds: i64,
+    pub idle_seconds: i64,
+    pub unknown_seconds: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -53,6 +111,70 @@ pub struct ActivityOverviewSummary {
     pub idle_duration_seconds: i64,
     pub unknown_duration_seconds: i64,
     pub session_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ActivityTimelineCloseReason {
+    Open,
+    ProcessChanged,
+    Paused,
+    Stopped,
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityTimelineGap {
+    pub started_at_utc: String,
+    pub ended_at_utc: String,
+    pub duration_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityTimelineResult {
+    pub date: String,
+    pub is_today: bool,
+    pub sessions: Vec<ActivityTimelineSession>,
+    pub gaps: Vec<ActivityTimelineGap>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityTimelineSession {
+    pub started_at_utc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ended_at_utc: Option<String>,
+    pub is_open: bool,
+    pub app_name: String,
+    pub total_seconds: i64,
+    pub active_seconds: i64,
+    pub idle_seconds: i64,
+    pub unknown_seconds: i64,
+    pub close_reason: ActivityTimelineCloseReason,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityTrendDay {
+    pub date: String,
+    pub is_today: bool,
+    pub active_seconds: i64,
+    pub focus_seconds: i64,
+    pub context_switch_count: i64,
+    pub session_count: i64,
+    pub top_app_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityWeeklyTrendResult {
+    pub days: Vec<ActivityTrendDay>,
+    pub average_active_seconds: i64,
+    pub comparison_to_average_text: String,
+    pub comparison_to_yesterday_text: String,
+    pub week_to_date_text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

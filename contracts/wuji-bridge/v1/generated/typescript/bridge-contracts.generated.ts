@@ -3,7 +3,49 @@
 // API version: 1.0
 // Regenerate with: dotnet run --project tools/QuantifiedSelf.Windows.Bridge.ContractGen -- --write
 
+export interface ActivityDailyStatsResult {
+  readonly date: string;
+  readonly isToday: boolean;
+  readonly totalSeconds: number;
+  readonly activeSeconds: number;
+  readonly idleSeconds: number;
+  readonly unknownSeconds: number;
+  readonly sessionCount: number;
+  readonly sampleCount: number;
+  readonly hours: ReadonlyArray<ActivityHourlyBucket>;
+}
+
+export interface ActivityDateParams {
+  readonly date: string;
+}
+
+export type ActivityGetHeatmapParams = Record<string, never>;
+
 export type ActivityGetOverviewParams = Record<string, never>;
+
+export type ActivityGetWeeklyTrendParams = Record<string, never>;
+
+export interface ActivityHeatmapCell {
+  readonly date: string;
+  readonly hour: number;
+  readonly activeSamples: number;
+  readonly idleSamples: number;
+  readonly unknownSamples: number;
+  readonly activeRatioPercent: number;
+  readonly intensityLevel: number;
+}
+
+export interface ActivityHeatmapResult {
+  readonly today: string;
+  readonly cells: ReadonlyArray<ActivityHeatmapCell>;
+}
+
+export interface ActivityHourlyBucket {
+  readonly hour: number;
+  readonly activeSeconds: number;
+  readonly idleSeconds: number;
+  readonly unknownSeconds: number;
+}
 
 export interface ActivityOverviewApp {
   readonly displayName: string;
@@ -38,6 +80,56 @@ export interface ActivityOverviewSummary {
   readonly idleDurationSeconds: number;
   readonly unknownDurationSeconds: number;
   readonly sessionCount: number;
+}
+
+export type ActivityTimelineCloseReason =
+  | 'open'
+  | 'process_changed'
+  | 'paused'
+  | 'stopped'
+  | 'other';
+
+export interface ActivityTimelineGap {
+  readonly startedAtUtc: string;
+  readonly endedAtUtc: string;
+  readonly durationSeconds: number;
+}
+
+export interface ActivityTimelineResult {
+  readonly date: string;
+  readonly isToday: boolean;
+  readonly sessions: ReadonlyArray<ActivityTimelineSession>;
+  readonly gaps: ReadonlyArray<ActivityTimelineGap>;
+}
+
+export interface ActivityTimelineSession {
+  readonly startedAtUtc: string;
+  readonly endedAtUtc?: string;
+  readonly isOpen: boolean;
+  readonly appName: string;
+  readonly totalSeconds: number;
+  readonly activeSeconds: number;
+  readonly idleSeconds: number;
+  readonly unknownSeconds: number;
+  readonly closeReason: ActivityTimelineCloseReason;
+}
+
+export interface ActivityTrendDay {
+  readonly date: string;
+  readonly isToday: boolean;
+  readonly activeSeconds: number;
+  readonly focusSeconds: number;
+  readonly contextSwitchCount: number;
+  readonly sessionCount: number;
+  readonly topAppName: string;
+}
+
+export interface ActivityWeeklyTrendResult {
+  readonly days: ReadonlyArray<ActivityTrendDay>;
+  readonly averageActiveSeconds: number;
+  readonly comparisonToAverageText: string;
+  readonly comparisonToYesterdayText: string;
+  readonly weekToDateText: string;
 }
 
 export type AgentGetStatusParams = Record<string, never>;
