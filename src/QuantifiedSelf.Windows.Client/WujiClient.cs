@@ -86,7 +86,8 @@ internal sealed class ActivityClient(
     IDailyStatsService dailyStats,
     IWeeklyTrendService weeklyTrend,
     IHourActivityHeatmapService heatmap,
-    IFocusInterruptionInsightService insights) : IActivityClient
+    IFocusInterruptionInsightService insights,
+    ITimelineDataService timeline) : IActivityClient
 {
     public IOverviewDataService Overview { get; } = overview;
     public ISamplesDataService Samples { get; } = samples;
@@ -96,6 +97,7 @@ internal sealed class ActivityClient(
     public IWeeklyTrendService WeeklyTrend { get; } = weeklyTrend;
     public IHourActivityHeatmapService Heatmap { get; } = heatmap;
     public IFocusInterruptionInsightService Insights { get; } = insights;
+    public ITimelineDataService Timeline { get; } = timeline;
 }
 
 internal sealed class DiagnosticsClient(IDiagnosticsDataService service) : IDiagnosticsClient

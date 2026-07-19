@@ -52,6 +52,8 @@ public interface IActivityClient
     IHourActivityHeatmapService Heatmap { get; }
 
     IFocusInterruptionInsightService Insights { get; }
+
+    ITimelineDataService Timeline { get; }
 }
 
 public interface IDiagnosticsClient : IDiagnosticsDataService;

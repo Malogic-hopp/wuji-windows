@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using QuantifiedSelf.Windows.ApplicationLayer.Activity;
+using QuantifiedSelf.Windows.ApplicationLayer.Contracts.Activity;
 using QuantifiedSelf.Windows.ApplicationLayer.Models;
 using QuantifiedSelf.Windows.ApplicationLayer.Settings;
 using QuantifiedSelf.Windows.Client.Bridge.Generated;
@@ -558,6 +559,329 @@ public sealed class BridgeHostTests
         Assert.DoesNotContain(Secret, result.RawOutput, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(Secret, result.Log, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("method=activity.getOverview", result.Log, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ActivityGetDailyStats_MapsOnlySafeFieldsAndFillsAll24Hours()
+    {
+        var activity = new FakeBridgeActivityClient
+        {
+            DailyStats = new DailyActivitySummary
+            {
+                Date = new DateTime(2026, 7, 16, 0, 0, 0, DateTimeKind.Local),
+                TotalDurationSeconds = 3600,
+                TotalActiveDurationSeconds = 3000,
+                TotalIdleDurationSeconds = 500,
+                SampleCount = 42,
+                SessionCount = 4,
+                HourlyActivity =
+                [
+                    new HourlyActivity(9, 120.6, 30.4, 10.0),
+                    new HourlyActivity(10, 0, 0, 0)
+                ]
+            }
+        };
+        var result = await RunHostAsync(
+            new FakeWujiClient(activity: activity),
+            Request("hello-1", BridgeProtocol.HelloMethod),
+            Request("init-1", BridgeProtocol.InitializeMethod),
+            RequestWithParams("daily-1", BridgeProtocol.ActivityGetDailyStatsMethod, new { date = "2026-07-16" }),
+            Request("shutdown-1", BridgeProtocol.ShutdownMethod));
+
+        var stats = Result(result.Responses[2]);
+        Assert.Equal("2026-07-16", stats.GetProperty("date").GetString());
+        Assert.Equal(
+            DateOnly.FromDateTime(DateTime.Now) == new DateOnly(2026, 7, 16),
+            stats.GetProperty("isToday").GetBoolean());
+        Assert.Equal(3600, stats.GetProperty("totalSeconds").GetInt64());
+        Assert.Equal(3000, stats.GetProperty("activeSeconds").GetInt64());
+        Assert.Equal(500, stats.GetProperty("idleSeconds").GetInt64());
+        Assert.Equal(100, stats.GetProperty("unknownSeconds").GetInt64());
+        Assert.Equal(4, stats.GetProperty("sessionCount").GetInt64());
+        Assert.Equal(42, stats.GetProperty("sampleCount").GetInt64());
+        var hours = stats.GetProperty("hours").EnumerateArray().ToArray();
+        Assert.Equal(24, hours.Length);
+        for (var hour = 0; hour < 24; hour++)
+        {
+            Assert.Equal(hour, hours[hour].GetProperty("hour").GetInt64());
+        }
+
+        Assert.Equal(121, hours[9].GetProperty("activeSeconds").GetInt64());
+        Assert.Equal(30, hours[9].GetProperty("idleSeconds").GetInt64());
+        Assert.Equal(10, hours[9].GetProperty("unknownSeconds").GetInt64());
+        Assert.Equal(0, hours[0].GetProperty("activeSeconds").GetInt64());
+        Assert.Equal(new DateOnly(2026, 7, 16), activity.LastDailyStatsDate);
+        Assert.Equal(1, activity.DailyStatsCount);
+        Assert.Equal(0, activity.SummaryCount);
+    }
+
+    [Theory]
+    [InlineData("2026-13-01")]
+    [InlineData("2026-02-30")]
+    [InlineData("16/07/2026")]
+    [InlineData("not-a-date")]
+    public async Task ActivityGetDailyStats_InvalidDate_ReturnsInvalidParamsWithoutCallingClient(string date)
+    {
+        var activity = new FakeBridgeActivityClient();
+        var result = await RunHostAsync(
+            new FakeWujiClient(activity: activity),
+            Request("hello-1", BridgeProtocol.HelloMethod),
+            Request("init-1", BridgeProtocol.InitializeMethod),
+            RequestWithParams("daily-1", BridgeProtocol.ActivityGetDailyStatsMethod, new { date }),
+            Request("shutdown-1", BridgeProtocol.ShutdownMethod));
+
+        var error = Error(result.Responses[2]);
+        Assert.Equal("invalid_request", error.GetProperty("code").GetString());
+        Assert.Equal("validation", error.GetProperty("data").GetProperty("kind").GetString());
+        Assert.False(error.GetProperty("data").GetProperty("retryable").GetBoolean());
+        Assert.Equal(0, activity.DailyStatsCount);
+    }
+
+    [Fact]
+    public async Task ActivityDateMethods_MissingOrUnknownParams_ReturnInvalidParamsWithoutCallingClient()
+    {
+        var activity = new FakeBridgeActivityClient();
+        var result = await RunHostAsync(
+            new FakeWujiClient(activity: activity),
+            Request("hello-1", BridgeProtocol.HelloMethod),
+            Request("init-1", BridgeProtocol.InitializeMethod),
+            Request("daily-missing", BridgeProtocol.ActivityGetDailyStatsMethod),
+            RequestWithParams("timeline-unknown", BridgeProtocol.ActivityGetTimelineMethod, new { executablePath = "forbidden" }),
+            Request("shutdown-1", BridgeProtocol.ShutdownMethod));
+
+        Assert.Equal("invalid_request", Error(result.Responses[2]).GetProperty("code").GetString());
+        Assert.Equal("invalid_request", Error(result.Responses[3]).GetProperty("code").GetString());
+        Assert.Equal(0, activity.DailyStatsCount);
+        Assert.Equal(0, activity.TimelineCount);
+    }
+
+    [Fact]
+    public async Task ActivityGetWeeklyTrend_MapsOnlySafeFieldsAndMarksToday()
+    {
+        const string PrivatePath = "C:\\Users\\private\\apps\\Safe App.exe";
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var days = Enumerable.Range(0, 7)
+            .Select(offset => new DailyTrendPoint
+            {
+                Date = today.AddDays(offset - 6).ToDateTime(TimeOnly.MinValue),
+                ActiveSeconds = 3600 + offset,
+                FocusSeconds = 900,
+                ContextSwitchCount = 12,
+                SessionCount = 3,
+                TopAppName = offset == 6 ? PrivatePath : null
+            })
+            .ToArray();
+        var activity = new FakeBridgeActivityClient
+        {
+            WeeklyTrend = new WeeklyTrendResult
+            {
+                Days = days,
+                AverageActiveSeconds = 3100.5,
+                ActiveComparisonText = "今天高于 7 天均值",
+                YesterdayActiveComparisonText = "昨天接近前几日均值",
+                WeekActiveComparisonText = "本周至今低于上周同期"
+            }
+        };
+        var result = await RunHostAsync(
+            new FakeWujiClient(activity: activity),
+            Request("hello-1", BridgeProtocol.HelloMethod),
+            Request("init-1", BridgeProtocol.InitializeMethod),
+            Request("trend-1", BridgeProtocol.ActivityGetWeeklyTrendMethod),
+            Request("shutdown-1", BridgeProtocol.ShutdownMethod));
+
+        var trend = Result(result.Responses[2]);
+        var mappedDays = trend.GetProperty("days").EnumerateArray().ToArray();
+        Assert.Equal(7, mappedDays.Length);
+        Assert.Equal(today.ToString("yyyy-MM-dd"), mappedDays[6].GetProperty("date").GetString());
+        Assert.True(mappedDays[6].GetProperty("isToday").GetBoolean());
+        Assert.False(mappedDays[0].GetProperty("isToday").GetBoolean());
+        Assert.Equal(3606, mappedDays[6].GetProperty("activeSeconds").GetInt64());
+        Assert.Equal(900, mappedDays[6].GetProperty("focusSeconds").GetInt64());
+        Assert.Equal(12, mappedDays[6].GetProperty("contextSwitchCount").GetInt64());
+        Assert.Equal(3, mappedDays[6].GetProperty("sessionCount").GetInt64());
+        Assert.Equal("Safe App.exe", mappedDays[6].GetProperty("topAppName").GetString());
+        Assert.Equal(string.Empty, mappedDays[0].GetProperty("topAppName").GetString());
+        Assert.Equal(3101, trend.GetProperty("averageActiveSeconds").GetInt64());
+        Assert.Equal("今天高于 7 天均值", trend.GetProperty("comparisonToAverageText").GetString());
+        Assert.Equal("昨天接近前几日均值", trend.GetProperty("comparisonToYesterdayText").GetString());
+        Assert.Equal("本周至今低于上周同期", trend.GetProperty("weekToDateText").GetString());
+        Assert.DoesNotContain(PrivatePath, result.RawOutput, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, activity.WeeklyTrendCount);
+    }
+
+    [Fact]
+    public async Task ActivityGetTimeline_MapsOnlySafeFieldsAndNeverExposesProcessNames()
+    {
+        const string PrivateProcess = "private-process.exe";
+        var activity = new FakeBridgeActivityClient
+        {
+            Timeline = new TimelineResult
+            {
+                Date = new DateOnly(2026, 7, 16),
+                IsToday = false,
+                Segments =
+                [
+                    new TimelineSegment
+                    {
+                        StartedAtUtc = new DateTime(2026, 7, 16, 8, 0, 0, DateTimeKind.Utc),
+                        EndedAtUtc = new DateTime(2026, 7, 16, 8, 20, 0, DateTimeKind.Utc),
+                        IsOpen = false,
+                        ProcessName = PrivateProcess,
+                        DisplayName = "安全应用",
+                        TotalSeconds = 1200,
+                        ActiveSeconds = 1000,
+                        IdleSeconds = 150,
+                        UnknownSeconds = -50,
+                        CloseReason = "ProcessChanged"
+                    },
+                    new TimelineSegment
+                    {
+                        StartedAtUtc = new DateTime(2026, 7, 16, 9, 0, 0, DateTimeKind.Utc),
+                        EndedAtUtc = new DateTime(2026, 7, 16, 9, 10, 0, DateTimeKind.Utc),
+                        IsOpen = false,
+                        ProcessName = "fallback-app",
+                        DisplayName = " ",
+                        TotalSeconds = 600,
+                        ActiveSeconds = 600,
+                        IdleSeconds = 0,
+                        UnknownSeconds = 0,
+                        CloseReason = "BogusReason"
+                    },
+                    new TimelineSegment
+                    {
+                        StartedAtUtc = new DateTime(2026, 7, 16, 10, 0, 0, DateTimeKind.Utc),
+                        EndedAtUtc = null,
+                        IsOpen = true,
+                        ProcessName = PrivateProcess,
+                        DisplayName = "Safe App",
+                        TotalSeconds = 300,
+                        ActiveSeconds = 300,
+                        IdleSeconds = 0,
+                        UnknownSeconds = 0,
+                        CloseReason = "Open"
+                    }
+                ],
+                Gaps =
+                [
+                    new TimelineGap
+                    {
+                        StartedAtUtc = new DateTime(2026, 7, 16, 8, 20, 0, DateTimeKind.Utc),
+                        EndedAtUtc = new DateTime(2026, 7, 16, 9, 0, 0, DateTimeKind.Utc),
+                        DurationSeconds = 2400
+                    }
+                ]
+            }
+        };
+        var result = await RunHostAsync(
+            new FakeWujiClient(activity: activity),
+            Request("hello-1", BridgeProtocol.HelloMethod),
+            Request("init-1", BridgeProtocol.InitializeMethod),
+            RequestWithParams("timeline-1", BridgeProtocol.ActivityGetTimelineMethod, new { date = "2026-07-16" }),
+            Request("shutdown-1", BridgeProtocol.ShutdownMethod));
+
+        var timeline = Result(result.Responses[2]);
+        Assert.Equal("2026-07-16", timeline.GetProperty("date").GetString());
+        Assert.False(timeline.GetProperty("isToday").GetBoolean());
+        var sessions = timeline.GetProperty("sessions").EnumerateArray().ToArray();
+        Assert.Equal(3, sessions.Length);
+        Assert.Equal("安全应用", sessions[0].GetProperty("appName").GetString());
+        Assert.Equal("2026-07-16T08:00:00.0000000Z", sessions[0].GetProperty("startedAtUtc").GetString());
+        Assert.Equal("2026-07-16T08:20:00.0000000Z", sessions[0].GetProperty("endedAtUtc").GetString());
+        Assert.False(sessions[0].GetProperty("isOpen").GetBoolean());
+        Assert.Equal(0, sessions[0].GetProperty("unknownSeconds").GetInt64());
+        Assert.Equal("process_changed", sessions[0].GetProperty("closeReason").GetString());
+        Assert.Equal("fallback-app", sessions[1].GetProperty("appName").GetString());
+        Assert.Equal("other", sessions[1].GetProperty("closeReason").GetString());
+        Assert.True(sessions[2].GetProperty("isOpen").GetBoolean());
+        Assert.False(sessions[2].TryGetProperty("endedAtUtc", out _));
+        Assert.Equal("open", sessions[2].GetProperty("closeReason").GetString());
+        var gaps = timeline.GetProperty("gaps").EnumerateArray().ToArray();
+        Assert.Single(gaps);
+        Assert.Equal("2026-07-16T08:20:00.0000000Z", gaps[0].GetProperty("startedAtUtc").GetString());
+        Assert.Equal(2400, gaps[0].GetProperty("durationSeconds").GetInt64());
+        Assert.DoesNotContain(PrivateProcess, result.RawOutput, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("processName", result.RawOutput, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(new DateOnly(2026, 7, 16), activity.LastTimelineDate);
+        Assert.Equal(1, activity.TimelineCount);
+    }
+
+    [Theory]
+    [InlineData("2026-13-01")]
+    [InlineData("2026/07/16")]
+    public async Task ActivityGetTimeline_InvalidDate_ReturnsInvalidParamsWithoutCallingClient(string date)
+    {
+        var activity = new FakeBridgeActivityClient();
+        var result = await RunHostAsync(
+            new FakeWujiClient(activity: activity),
+            Request("hello-1", BridgeProtocol.HelloMethod),
+            Request("init-1", BridgeProtocol.InitializeMethod),
+            RequestWithParams("timeline-1", BridgeProtocol.ActivityGetTimelineMethod, new { date }),
+            Request("shutdown-1", BridgeProtocol.ShutdownMethod));
+
+        var error = Error(result.Responses[2]);
+        Assert.Equal("invalid_request", error.GetProperty("code").GetString());
+        Assert.Equal("validation", error.GetProperty("data").GetProperty("kind").GetString());
+        Assert.False(error.GetProperty("data").GetProperty("retryable").GetBoolean());
+        Assert.Equal(0, activity.TimelineCount);
+    }
+
+    [Fact]
+    public async Task ActivityGetHeatmap_MapsOnlySafeFields()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var activity = new FakeBridgeActivityClient
+        {
+            Heatmap = new HourActivityHeatmapResult
+            {
+                Today = today,
+                Points =
+                [
+                    new DailyHourActivityPoint
+                    {
+                        Date = today.ToString("yyyy-MM-dd"),
+                        Hour = 9,
+                        ActiveSamples = 3,
+                        IdleSamples = 1,
+                        UnknownSamples = 0,
+                        ActiveIntensity = 0.5,
+                        IntensityLevel = 2
+                    },
+                    new DailyHourActivityPoint
+                    {
+                        Date = today.AddDays(-1).ToString("yyyy-MM-dd"),
+                        Hour = 22,
+                        ActiveSamples = 5,
+                        IdleSamples = -2,
+                        UnknownSamples = -1,
+                        ActiveIntensity = 1.0,
+                        IntensityLevel = 4
+                    }
+                ]
+            }
+        };
+        var result = await RunHostAsync(
+            new FakeWujiClient(activity: activity),
+            Request("hello-1", BridgeProtocol.HelloMethod),
+            Request("init-1", BridgeProtocol.InitializeMethod),
+            Request("heatmap-1", BridgeProtocol.ActivityGetHeatmapMethod),
+            Request("shutdown-1", BridgeProtocol.ShutdownMethod));
+
+        var heatmap = Result(result.Responses[2]);
+        Assert.Equal(today.ToString("yyyy-MM-dd"), heatmap.GetProperty("today").GetString());
+        var cells = heatmap.GetProperty("cells").EnumerateArray().ToArray();
+        Assert.Equal(2, cells.Length);
+        Assert.Equal(today.ToString("yyyy-MM-dd"), cells[0].GetProperty("date").GetString());
+        Assert.Equal(9, cells[0].GetProperty("hour").GetInt64());
+        Assert.Equal(3, cells[0].GetProperty("activeSamples").GetInt64());
+        Assert.Equal(1, cells[0].GetProperty("idleSamples").GetInt64());
+        Assert.Equal(0, cells[0].GetProperty("unknownSamples").GetInt64());
+        Assert.Equal(75, cells[0].GetProperty("activeRatioPercent").GetInt64());
+        Assert.Equal(2, cells[0].GetProperty("intensityLevel").GetInt64());
+        Assert.Equal(0, cells[1].GetProperty("idleSamples").GetInt64());
+        Assert.Equal(0, cells[1].GetProperty("unknownSamples").GetInt64());
+        Assert.Equal(100, cells[1].GetProperty("activeRatioPercent").GetInt64());
+        Assert.Equal(4, cells[1].GetProperty("intensityLevel").GetInt64());
+        Assert.Equal(1, activity.HeatmapCount);
     }
 
     [Theory]

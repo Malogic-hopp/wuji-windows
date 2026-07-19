@@ -56,6 +56,10 @@ internal sealed class BridgeHostOptions
         BridgeProtocol.AgentResumeMethod => AgentResumeTimeout,
         BridgeProtocol.AgentStopMethod => AgentStopTimeout,
         BridgeProtocol.ActivityGetOverviewMethod => ActivityOverviewTimeout,
+        BridgeProtocol.ActivityGetDailyStatsMethod => ActivityOverviewTimeout,
+        BridgeProtocol.ActivityGetWeeklyTrendMethod => ActivityOverviewTimeout,
+        BridgeProtocol.ActivityGetTimelineMethod => ActivityOverviewTimeout,
+        BridgeProtocol.ActivityGetHeatmapMethod => ActivityOverviewTimeout,
         BridgeProtocol.SettingsGetMethod => SettingsReadTimeout,
         BridgeProtocol.SettingsUpdateMethod => SettingsUpdateTimeout,
         _ => RequestTimeout

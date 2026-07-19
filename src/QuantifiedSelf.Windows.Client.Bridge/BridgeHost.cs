@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using QuantifiedSelf.Windows.Client;
@@ -245,6 +246,18 @@ internal sealed class BridgeHost
                 BridgeProtocol.ActivityGetOverviewMethod => await HandleActivityGetOverviewAsync(
                     request,
                     requestCancellation.Token).ConfigureAwait(false),
+                BridgeProtocol.ActivityGetDailyStatsMethod => await HandleActivityGetDailyStatsAsync(
+                    request,
+                    requestCancellation.Token).ConfigureAwait(false),
+                BridgeProtocol.ActivityGetWeeklyTrendMethod => await HandleActivityGetWeeklyTrendAsync(
+                    request,
+                    requestCancellation.Token).ConfigureAwait(false),
+                BridgeProtocol.ActivityGetTimelineMethod => await HandleActivityGetTimelineAsync(
+                    request,
+                    requestCancellation.Token).ConfigureAwait(false),
+                BridgeProtocol.ActivityGetHeatmapMethod => await HandleActivityGetHeatmapAsync(
+                    request,
+                    requestCancellation.Token).ConfigureAwait(false),
                 BridgeProtocol.SettingsGetMethod => await HandleSettingsGetAsync(
                     request,
                     requestCancellation.Token).ConfigureAwait(false),
@@ -408,6 +421,90 @@ internal sealed class BridgeHost
                 await recentSessionsTask.ConfigureAwait(false))));
     }
 
+    private async Task<ResponseOutcome> HandleActivityGetDailyStatsAsync(
+        BridgeRequestEnvelope request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryReadLocalDate(request, out var localDate))
+        {
+            return InvalidParameters(request);
+        }
+
+        var summary = await _client.Activity.DailyStats
+            .GetSummaryForDateAsync(localDate, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return SerializeAndCache(request, BridgeProtocol.Success(
+            request.Id,
+            BridgeActivityMapper.ToDailyStats(summary, localDate, TodayLocal())));
+    }
+
+    private async Task<ResponseOutcome> HandleActivityGetWeeklyTrendAsync(
+        BridgeRequestEnvelope request,
+        CancellationToken cancellationToken)
+    {
+        var trend = await _client.Activity.WeeklyTrend
+            .GetWeeklyTrendAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return SerializeAndCache(request, BridgeProtocol.Success(
+            request.Id,
+            BridgeActivityMapper.ToWeeklyTrend(trend, TodayLocal())));
+    }
+
+    private async Task<ResponseOutcome> HandleActivityGetTimelineAsync(
+        BridgeRequestEnvelope request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryReadLocalDate(request, out var localDate))
+        {
+            return InvalidParameters(request);
+        }
+
+        var timeline = await _client.Activity.Timeline
+            .GetTimelineAsync(localDate, cancellationToken)
+            .ConfigureAwait(false);
+        return SerializeAndCache(request, BridgeProtocol.Success(
+            request.Id,
+            BridgeActivityMapper.ToTimeline(timeline)));
+    }
+
+    private async Task<ResponseOutcome> HandleActivityGetHeatmapAsync(
+        BridgeRequestEnvelope request,
+        CancellationToken cancellationToken)
+    {
+        var heatmap = await _client.Activity.Heatmap
+            .GetHeatmapAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return SerializeAndCache(request, BridgeProtocol.Success(
+            request.Id,
+            BridgeActivityMapper.ToHeatmap(heatmap)));
+    }
+
+    private static bool TryReadLocalDate(BridgeRequestEnvelope request, out DateOnly localDate)
+    {
+        localDate = default;
+        var parameters = JsonSerializer.Deserialize<ActivityDateParams>(
+            request.Params.GetRawText(),
+            BridgeProtocol.ParameterSerializerOptions);
+        return parameters is not null
+            && DateOnly.TryParseExact(
+                parameters.Date,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out localDate);
+    }
+
+    private ResponseOutcome InvalidParameters(BridgeRequestEnvelope request) =>
+        SerializeAndCache(request, BridgeProtocol.Failure(
+            request.Id,
+            request.Meta.CorrelationId,
+            "invalid_request",
+            "请求参数无效。",
+            BridgeErrorKind.Validation,
+            retryable: false));
+
+    private static DateOnly TodayLocal() => DateOnly.FromDateTime(DateTime.Now);
+
     private async Task<ResponseOutcome> HandleSettingsGetAsync(
         BridgeRequestEnvelope request,
         CancellationToken cancellationToken)
@@ -524,19 +621,29 @@ internal sealed class BridgeHost
     {
         if (request.Method == BridgeProtocol.SettingsUpdateMethod)
         {
-            try
-            {
-                return JsonSerializer.Deserialize<SettingsUpdateParams>(
-                    request.Params.GetRawText(),
-                    BridgeProtocol.ParameterSerializerOptions) is not null;
-            }
-            catch (JsonException)
-            {
-                return false;
-            }
+            return CanDeserializeParameters<SettingsUpdateParams>(request);
+        }
+
+        if (request.Method is BridgeProtocol.ActivityGetDailyStatsMethod or BridgeProtocol.ActivityGetTimelineMethod)
+        {
+            return CanDeserializeParameters<ActivityDateParams>(request);
         }
 
         return !request.Params.EnumerateObject().Any();
+    }
+
+    private static bool CanDeserializeParameters<T>(BridgeRequestEnvelope request)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(
+                request.Params.GetRawText(),
+                BridgeProtocol.ParameterSerializerOptions) is not null;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static bool TryGetNonEmptyBoundedString(

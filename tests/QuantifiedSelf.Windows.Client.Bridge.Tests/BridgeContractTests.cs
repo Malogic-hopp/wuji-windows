@@ -64,6 +64,10 @@ public sealed class BridgeContractTests
                 "agent.resume",
                 "agent.stop",
                 "activity.getOverview",
+                "activity.getDailyStats",
+                "activity.getWeeklyTrend",
+                "activity.getTimeline",
+                "activity.getHeatmap",
                 "settings.get",
                 "settings.update",
                 "bridge.shutdown"
@@ -191,6 +195,161 @@ public sealed class BridgeContractTests
     }
 
     [Fact]
+    public void ActivityAnalysisContracts_ExposeOnlyApprovedSafeFields()
+    {
+        Assert.Equal(
+            ["Date"],
+            typeof(ActivityDateParams).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["ActiveSeconds", "Date", "Hours", "IdleSeconds", "IsToday", "SampleCount", "SessionCount", "TotalSeconds", "UnknownSeconds"],
+            typeof(ActivityDailyStatsResult).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["ActiveSeconds", "Hour", "IdleSeconds", "UnknownSeconds"],
+            typeof(ActivityHourlyBucket).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["ActiveSeconds", "ContextSwitchCount", "Date", "FocusSeconds", "IsToday", "SessionCount", "TopAppName"],
+            typeof(ActivityTrendDay).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["AverageActiveSeconds", "ComparisonToAverageText", "ComparisonToYesterdayText", "Days", "WeekToDateText"],
+            typeof(ActivityWeeklyTrendResult).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["ActiveSeconds", "AppName", "CloseReason", "EndedAtUtc", "IdleSeconds", "IsOpen", "StartedAtUtc", "TotalSeconds", "UnknownSeconds"],
+            typeof(ActivityTimelineSession).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["DurationSeconds", "EndedAtUtc", "StartedAtUtc"],
+            typeof(ActivityTimelineGap).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["Date", "Gaps", "IsToday", "Sessions"],
+            typeof(ActivityTimelineResult).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["ActiveRatioPercent", "ActiveSamples", "Date", "Hour", "IdleSamples", "IntensityLevel", "UnknownSamples"],
+            typeof(ActivityHeatmapCell).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["Cells", "Today"],
+            typeof(ActivityHeatmapResult).GetProperties().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            ["Open", "Other", "Paused", "ProcessChanged", "Stopped"],
+            Enum.GetNames<ActivityTimelineCloseReason>().Order().ToArray());
+
+        var memberNames = CollectContractMemberNames(
+            typeof(ActivityDateParams),
+            typeof(ActivityDailyStatsResult),
+            typeof(ActivityHourlyBucket),
+            typeof(ActivityTrendDay),
+            typeof(ActivityWeeklyTrendResult),
+            typeof(ActivityTimelineSession),
+            typeof(ActivityTimelineGap),
+            typeof(ActivityTimelineResult),
+            typeof(ActivityHeatmapCell),
+            typeof(ActivityHeatmapResult));
+        var joinedMemberNames = string.Join(Environment.NewLine, memberNames);
+        string[] forbiddenSubstrings =
+        [
+            "ProcessName", "WindowTitle", "ExecutablePath", "Path", "Title",
+            "Database", "Exception", "StackTrace", "MachineName", "UserName"
+        ];
+        foreach (var forbidden in forbiddenSubstrings)
+        {
+            Assert.DoesNotContain(forbidden, joinedMemberNames, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // "Id" is only forbidden as a full member name; Idle* names contain the letters legitimately.
+        Assert.DoesNotContain(memberNames, name => string.Equals(name, "Id", StringComparison.OrdinalIgnoreCase));
+
+        var schemaPath = Path.Combine(
+            FindRepositoryRoot(),
+            "contracts",
+            "wuji-bridge",
+            "v1",
+            "bridge.schema.json");
+        using var schema = JsonDocument.Parse(File.ReadAllText(schemaPath));
+        var definitions = schema.RootElement.GetProperty("$defs");
+        Assert.Equal(
+            ["open", "process_changed", "paused", "stopped", "other"],
+            definitions.GetProperty("ActivityTimelineCloseReason")
+                .GetProperty("enum")
+                .EnumerateArray()
+                .Select(value => value.GetString())
+                .ToArray());
+        Assert.Equal(
+            128,
+            definitions.GetProperty("ActivityTimelineSession")
+                .GetProperty("properties")
+                .GetProperty("appName")
+                .GetProperty("maxLength")
+                .GetInt32());
+        Assert.Equal(
+            23,
+            definitions.GetProperty("ActivityHourlyBucket")
+                .GetProperty("properties")
+                .GetProperty("hour")
+                .GetProperty("maximum")
+                .GetInt32());
+        Assert.Equal(
+            100,
+            definitions.GetProperty("ActivityHeatmapCell")
+                .GetProperty("properties")
+                .GetProperty("activeRatioPercent")
+                .GetProperty("maximum")
+                .GetInt32());
+        Assert.Equal(
+            4,
+            definitions.GetProperty("ActivityHeatmapCell")
+                .GetProperty("properties")
+                .GetProperty("intensityLevel")
+                .GetProperty("maximum")
+                .GetInt32());
+        Assert.Equal(
+            "date-time",
+            definitions.GetProperty("ActivityTimelineSession")
+                .GetProperty("properties")
+                .GetProperty("startedAtUtc")
+                .GetProperty("format")
+                .GetString());
+        Assert.Equal(
+            "date",
+            definitions.GetProperty("ActivityDateParams")
+                .GetProperty("required")
+                .EnumerateArray()
+                .Select(value => value.GetString())
+                .Single());
+    }
+
+    private static HashSet<string> CollectContractMemberNames(params Type[] rootTypes)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        var visited = new HashSet<Type>();
+        var queue = new Queue<Type>(rootTypes);
+        while (queue.Count > 0)
+        {
+            var type = queue.Dequeue();
+            if (!visited.Add(type) || type.Namespace != typeof(ActivityDailyStatsResult).Namespace)
+            {
+                continue;
+            }
+
+            foreach (var property in type.GetProperties())
+            {
+                names.Add(property.Name);
+                var propertyType = property.PropertyType;
+                if (propertyType.IsGenericType)
+                {
+                    foreach (var argument in propertyType.GetGenericArguments())
+                    {
+                        queue.Enqueue(argument);
+                    }
+                }
+                else
+                {
+                    queue.Enqueue(propertyType);
+                }
+            }
+        }
+
+        return names;
+    }
+
+    [Fact]
     public void SettingsContracts_ExposeOnlyTheApprovedSafeAllowlist()
     {
         Assert.Equal(
@@ -283,13 +442,21 @@ public sealed class BridgeContractTests
             "BridgeActivityMapper.cs"));
 
         Assert.Contains("_client.Activity.Overview", host, StringComparison.Ordinal);
+        Assert.Contains("_client.Activity.DailyStats", host, StringComparison.Ordinal);
+        Assert.Contains("_client.Activity.WeeklyTrend", host, StringComparison.Ordinal);
+        Assert.Contains("_client.Activity.Timeline", host, StringComparison.Ordinal);
+        Assert.Contains("_client.Activity.Heatmap", host, StringComparison.Ordinal);
         Assert.DoesNotContain("_client.Activity.Apps", host, StringComparison.Ordinal);
         Assert.DoesNotContain("_client.Activity.Sessions", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("_client.Activity.Samples", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("_client.Activity.Insights", host, StringComparison.Ordinal);
         Assert.DoesNotContain("Sqlite", host, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Infrastructure", host, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("WindowTitle", mapper, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("ProcessName", mapper, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Database", mapper, StringComparison.OrdinalIgnoreCase);
+        // The timeline app name may fall back to the raw process name, but only as
+        // input to display-name sanitization; it must never be assigned directly.
+        Assert.DoesNotContain("ProcessName;", mapper, StringComparison.Ordinal);
     }
 
     [Fact]
