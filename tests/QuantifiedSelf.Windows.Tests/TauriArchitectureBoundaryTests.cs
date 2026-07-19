@@ -754,6 +754,25 @@ public sealed class TauriArchitectureBoundaryTests
     }
 
     [Fact]
+    public void MissingStaleAgent_CanRestartFromReactAndTrayAndRefreshesDashboard()
+    {
+        var presentation = ReadTauriFile("src", "features", "agent", "agentPresentation.ts");
+        var commandContainer = ReadTauriFile("src", "features", "agent", "AgentCommandContainer.tsx");
+        var invalidation = ReadTauriFile("src", "bridge", "queryInvalidation.ts");
+        var tray = ReadTauriFile("src-tauri", "src", "tray.rs");
+
+        Assert.Contains("status.isRunning", presentation, StringComparison.Ordinal);
+        Assert.Contains("label: '记录已中断'", presentation, StringComparison.Ordinal);
+        Assert.Contains("availableCommands: startOnly", presentation, StringComparison.Ordinal);
+        Assert.Contains("Agent 未运行，可以重新启动", presentation, StringComparison.Ordinal);
+        Assert.Contains("refreshQueriesAfterAgentCommand(queryClient)", commandContainer, StringComparison.Ordinal);
+        Assert.Contains("agentStatusQueryKey", invalidation, StringComparison.Ordinal);
+        Assert.Contains("activityOverviewQueryKey", invalidation, StringComparison.Ordinal);
+        Assert.Contains("presentation.can_start = true", tray, StringComparison.Ordinal);
+        Assert.Contains("Agent：记录已中断", tray, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TauriSource_DoesNotAccessSqliteNamedPipeRegistryOrWpf()
     {
         string[] forbiddenMarkers =
