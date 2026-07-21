@@ -279,7 +279,7 @@ function HeatmapReady({
                   ].filter(Boolean).join(' ');
                   return (
                     <div
-                      key={cell.hour}
+                      key={cell.date}
                       className={className}
                       role="gridcell"
                       tabIndex={isFocus ? 0 : -1}
