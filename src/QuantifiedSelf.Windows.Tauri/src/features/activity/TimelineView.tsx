@@ -21,6 +21,7 @@ import {
   buildTrackSegments,
   getCloseReasonLabel,
   getHourHighlightGeometry,
+  getNowPercent,
   isDateParamAtOrAfterToday,
   shiftDateParam,
   timelineScaleHours,
@@ -30,6 +31,9 @@ import {
 import { formatLastUpdated } from '../dashboard/dashboardFormatting';
 
 type Locale = string | readonly string[] | undefined;
+
+/** 超过 2 小时的间隔按长间隔渲染（平涂 + 中央文字），短间隔保留斜纹。 */
+const longGapThresholdSeconds = 2 * 60 * 60;
 
 interface TimelineViewProps {
   readonly state: ActivityTimelineViewState;
@@ -218,6 +222,9 @@ function TimelineReady({
   const segments = buildTrackSegments(timeline);
   const highlight = highlightHour === undefined ? undefined : getHourHighlightGeometry(highlightHour);
   const highlightRef = useRef<HTMLLIElement>(null);
+  const nowPercent = getNowPercent(timeline.isToday);
+  // rawSessionCount 为可选字段：旧 Bridge 不下发时回退为当前段数（此时不会显示合并提示）
+  const rawSessionCount = timeline.rawSessionCount ?? timeline.sessions.length;
 
   useEffect(() => {
     if (highlightHour === undefined) return;
@@ -249,11 +256,28 @@ function TimelineReady({
               />
             )}
             {segments.map((segment) => <TimelineSegment key={segment.key} segment={segment} locale={locale} />)}
+            {nowPercent !== undefined && (
+              <li
+                className="timeline-track__future"
+                style={{ left: `${String(nowPercent)}%`, width: `${(100 - nowPercent).toFixed(3)}%` }}
+                aria-hidden="true"
+              />
+            )}
+            {nowPercent !== undefined && (
+              <li
+                className="timeline-track__now"
+                style={{ left: `${String(nowPercent)}%` }}
+                aria-hidden="true"
+              />
+            )}
           </ul>
           <div className="timeline-track__scale" aria-hidden="true">
             {timelineScaleHours.map((hour) => (
               <span key={hour} style={{ left: `${String((hour / 24) * 100)}%` }}>{formatHourLabel(hour)}</span>
             ))}
+            {nowPercent !== undefined && (
+              <span className="timeline-track__scale-now" style={{ left: `${String(nowPercent)}%` }}>现在</span>
+            )}
           </div>
           <div className="timeline-legend">
             <span className="timeline-legend__item">
@@ -273,7 +297,10 @@ function TimelineReady({
           <div className="dashboard-module__icon"><ClockCountdownIcon size={20} aria-hidden="true" /></div>
           <div>
             <h2 id="timeline-list-title">当天会话</h2>
-            <p>按开始时间倒序，共 {timeline.sessions.length} 个会话</p>
+            <p>
+              按开始时间倒序，共 {timeline.sessions.length} 段使用
+              {rawSessionCount > timeline.sessions.length ? '（相邻碎片已合并）' : ''}
+            </p>
           </div>
         </div>
         {timeline.sessions.length === 0 ? (
@@ -326,11 +353,31 @@ function TimelineSegment({
   if (segment.kind === 'gap') {
     const { gap } = segment;
     const range = formatSessionTimeRange(gap.startedAtUtc, gap.endedAtUtc, locale);
+    // 超过 2 小时的长间隔：平静平涂 + 中央时长文字，短间隔保留斜纹
+    const isLongGap = gap.durationSeconds > longGapThresholdSeconds;
+    const label = `暂停与空闲间隔，${range}，时长 ${formatDuration(gap.durationSeconds, locale)}`;
+    // 长间隔是有意义的信息（当天最长的未使用时段），可聚焦并对读屏可见；
+    // 短间隔仅作视觉纹理，保持 aria-hidden。
+    if (isLongGap) {
+      return (
+        <li
+          className="timeline-track__segment timeline-track__segment--gap timeline-track__segment--gap-long"
+          style={style}
+          title={label}
+          tabIndex={0}
+          aria-label={label}
+        >
+          <span className="timeline-track__gap-label" aria-hidden="true">
+            无记录 {formatDuration(gap.durationSeconds, locale)}
+          </span>
+        </li>
+      );
+    }
     return (
       <li
         className="timeline-track__segment timeline-track__segment--gap"
         style={style}
-        title={`暂停与空闲间隔，${range}，时长 ${formatDuration(gap.durationSeconds, locale)}`}
+        title={label}
         aria-hidden="true"
       />
     );

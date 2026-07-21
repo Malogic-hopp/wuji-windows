@@ -26,6 +26,7 @@ function session(overrides: Partial<ActivityTimelineSession>): ActivityTimelineS
 const timeline: ActivityTimelineResult = {
   date: '2026-07-19',
   isToday: false,
+  rawSessionCount: 2,
   sessions: [
     session({}),
     session({
@@ -192,6 +193,68 @@ describe('TimelineView 时间线与会话列表', () => {
     expect(idleSegments[0]).toHaveAttribute('aria-hidden', 'true');
     expect(idleSegments[0].title).toContain('Visual Studio Code 空闲');
     expect(idleSegments[0].title).toContain('时长 30分钟');
+  });
+
+  it('超过 2 小时的长间隔平涂并显示中央时长文字，且对读屏可见', () => {
+    const { container } = renderView();
+
+    const longGap = container.querySelector<HTMLElement>('.timeline-track__segment--gap-long');
+    expect(longGap).not.toBeNull();
+    expect(longGap?.querySelector('.timeline-track__gap-label')?.textContent)
+      .toBe('无记录 3小时30分钟');
+    // 长间隔是有意义的信息：可聚焦、带中文 aria-label，不进 aria-hidden
+    expect(longGap).toHaveAttribute('tabindex', '0');
+    expect(longGap).not.toHaveAttribute('aria-hidden');
+    expect(longGap?.getAttribute('aria-label')).toContain('暂停与空闲间隔');
+    expect(longGap?.getAttribute('aria-label')).toContain('3小时30分钟');
+  });
+
+  it('rawSessionCount 缺失时回退为段数且不显示合并提示', () => {
+    const legacy: ActivityTimelineResult = { date: '2026-07-19', isToday: false, sessions: [], gaps: [] };
+    renderView({ state: { kind: 'ready', timeline: legacy, updatedAt: Date.now() } });
+
+    expect(screen.queryByText(/相邻碎片已合并/)).not.toBeInTheDocument();
+  });
+
+  it('查看今天时渲染「现在」指示线、未来罩层与刻度标签，历史日期不渲染', () => {
+    const todayTimeline: ActivityTimelineResult = { ...timeline, isToday: true };
+    const { container, unmount } = render(
+      <TimelineView
+        state={{ kind: 'ready', timeline: todayTimeline, updatedAt: Date.now() }}
+        refreshing={false}
+        dateParam="2026-07-19"
+        todayParam="2026-07-19"
+        onSelectDate={vi.fn()}
+        onRefresh={vi.fn()}
+        locale="zh-CN"
+      />,
+    );
+
+    expect(container.querySelector('.timeline-track__now')).not.toBeNull();
+    expect(container.querySelector('.timeline-track__future')).not.toBeNull();
+    expect(screen.getByText('现在')).toBeInTheDocument();
+    unmount();
+
+    const { container: history } = render(
+      <TimelineView
+        state={{ kind: 'ready', timeline, updatedAt: Date.now() }}
+        refreshing={false}
+        dateParam="2026-07-19"
+        todayParam="2026-07-20"
+        onSelectDate={vi.fn()}
+        onRefresh={vi.fn()}
+        locale="zh-CN"
+      />,
+    );
+    expect(history.querySelector('.timeline-track__now')).toBeNull();
+    expect(history.querySelector('.timeline-track__future')).toBeNull();
+    expect(screen.queryByText('现在')).not.toBeInTheDocument();
+  });
+
+  it('合并发生时副标题提示相邻碎片已合并', () => {
+    renderView({ state: { kind: 'ready', timeline: { ...timeline, rawSessionCount: 57 }, updatedAt: Date.now() } });
+
+    expect(screen.getByText(/共 2 段使用（相邻碎片已合并）/)).toBeInTheDocument();
   });
 
   it('提供 hour 参数时渲染高亮带与定位说明', () => {    const { container, unmount } = render(

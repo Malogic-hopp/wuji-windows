@@ -327,11 +327,30 @@ button, a[href] { -webkit-tap-highlight-color: transparent; }
   inset: 0;
   background: repeating-linear-gradient(to right, var(--color-border) 0 1px, transparent 1px calc(100% / 24));
 }
-.timeline-track__segment { position: absolute; top: 0; bottom: 0; min-width: 2px; }
+.timeline-track__segment { position: absolute; top: var(--space-1); bottom: var(--space-1); min-width: 2px; border-radius: 3px; }
 .timeline-track__segment--session { background: var(--color-accent); }
-.timeline-track__segment--open { background: var(--color-accent-hover); }
+.timeline-track__segment--open { background: var(--color-accent); animation: timeline-open-pulse 2s ease-in-out infinite; }
+@keyframes timeline-open-pulse { 50% { opacity: .55; } }
 .timeline-track__segment--session:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
-.timeline-track__segment--gap { background: repeating-linear-gradient(135deg, var(--color-border) 0 2px, transparent 2px 8px); }
+.timeline-track__segment--gap { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-border) 60%, transparent) 0 2px, transparent 2px 12px); }
+/* 长间隔（>2h）：平静平涂 + 中央时长文字，把死空间变成信息 */
+.timeline-track__segment--gap-long {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-surface-subtle);
+}
+.timeline-track__gap-label { overflow: hidden; padding-inline: var(--space-1); color: var(--color-text-muted); font-size: .72em; text-overflow: ellipsis; white-space: nowrap; }
+/* 「现在」指示线（仅今天）：2px 主题色竖线 + 顶部圆点 */
+.timeline-track__now { position: absolute; top: 0; bottom: 0; z-index: 3; width: 2px; margin-left: -1px; background: var(--color-accent); pointer-events: none; }
+.timeline-track__now::before { content: ''; position: absolute; top: 0; left: 50%; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); transform: translateX(-50%); }
+/* 未来区域：纯色罩层，与斜纹间隔拉开语义 */
+.timeline-track__future { position: absolute; top: 0; bottom: 0; z-index: 1; background: color-mix(in srgb, var(--color-surface) 60%, transparent); pointer-events: none; }
+.timeline-track__scale-now { color: var(--color-accent); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) {
+  .timeline-track__segment--open { animation: none; }
+}
 .timeline-track__highlight {
   position: absolute;
   top: 0;
@@ -543,6 +562,11 @@ button, a[href] { -webkit-tap-highlight-color: transparent; }
   .timeline-track__segment--session:focus-visible { outline-color: Highlight; }
   .timeline-track__segment--gap { background: Canvas; border-left: 1px dashed GrayText; border-right: 1px dashed GrayText; }
   .timeline-track__highlight { background: Canvas; box-shadow: inset 0 0 0 2px Highlight; }
+  .timeline-track__now { background: Highlight; }
+  .timeline-track__now::before { background: Highlight; }
+  .timeline-track__future { background: Canvas; opacity: .55; }
+  .timeline-track__segment--gap-long { border-left: 1px dashed GrayText; border-right: 1px dashed GrayText; }
+  .timeline-track__gap-label { color: CanvasText; }
   .timeline-legend__swatch--session { border: 1px solid ButtonBorder; background: CanvasText; }
   .timeline-legend__swatch--gap { border: 1px dashed GrayText; background: Canvas; }
   .timeline-badge { border: 1px solid Highlight; }

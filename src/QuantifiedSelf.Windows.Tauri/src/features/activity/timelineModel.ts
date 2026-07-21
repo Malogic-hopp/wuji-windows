@@ -139,6 +139,12 @@ export function getHourHighlightGeometry(hour: number): TrackSegmentGeometry {
   return { leftPercent, widthPercent: roundPercent(100 / 24) };
 }
 
+/** 「现在」指示线在轨道上的 left%：仅查看今天时返回当前本地时刻的位置，否则 undefined。 */
+export function getNowPercent(isToday: boolean, now = new Date()): number | undefined {
+  if (!isToday) return undefined;
+  return roundPercent(getLocalDayFraction(now.toISOString()) * 100);
+}
+
 /** 结束原因只保留对用户有含义的中文说明，其余省略。 */
 export function getCloseReasonLabel(closeReason: ActivityTimelineCloseReason): string | undefined {
   switch (closeReason) {

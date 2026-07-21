@@ -8,6 +8,7 @@ import {
   getCloseReasonLabel,
   getHourHighlightGeometry,
   getLocalDayFraction,
+  getNowPercent,
   getTrackSegmentGeometry,
   isDateParamAtOrAfterToday,
   isTimelineEmpty,
@@ -40,6 +41,7 @@ function timeline(overrides: Partial<ActivityTimelineResult>): ActivityTimelineR
   return {
     date: '2026-07-19',
     isToday: false,
+    rawSessionCount: 0,
     sessions: [],
     gaps: [],
     ...overrides,
@@ -219,5 +221,13 @@ describe('timelineModel 结束原因展示', () => {
     expect(getCloseReasonLabel('open')).toBeUndefined();
     expect(getCloseReasonLabel('process_changed')).toBeUndefined();
     expect(getCloseReasonLabel('other')).toBeUndefined();
+  });
+});
+
+describe('timelineModel 现在指示线', () => {
+  it('仅查看今天时返回当前时刻位置', () => {
+    const noon = new Date(2026, 6, 19, 12, 0, 0);
+    expect(getNowPercent(true, noon)).toBe(50);
+    expect(getNowPercent(false, noon)).toBeUndefined();
   });
 });
