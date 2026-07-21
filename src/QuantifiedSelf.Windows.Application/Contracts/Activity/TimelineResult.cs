@@ -2,9 +2,9 @@ namespace QuantifiedSelf.Windows.ApplicationLayer.Contracts.Activity;
 
 /// <summary>
 /// Framework-independent timeline for one local day. Sessions are clipped to the
-/// local-day bounds, sorted ascending by start, and the gaps between consecutive
-/// segments are precomputed so callers never derive day boundaries or effective
-/// ends themselves.
+/// local-day bounds, sorted ascending by start, adjacent same-app fragments are
+/// merged for display, and the gaps between consecutive merged segments are
+/// precomputed so callers never derive day boundaries or effective ends themselves.
 /// </summary>
 public sealed class TimelineResult
 {
@@ -15,6 +15,12 @@ public sealed class TimelineResult
     public IReadOnlyList<TimelineSegment> Segments { get; init; } = [];
 
     public IReadOnlyList<TimelineGap> Gaps { get; init; } = [];
+
+    /// <summary>
+    /// Segment count before display merging (clipped sessions), so the UI can
+    /// show「相邻碎片已合并」hints when Segments is shorter.
+    /// </summary>
+    public int RawSegmentCount { get; init; }
 }
 
 /// <summary>

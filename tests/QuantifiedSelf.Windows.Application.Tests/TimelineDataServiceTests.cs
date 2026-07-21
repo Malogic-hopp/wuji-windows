@@ -136,8 +136,10 @@ public sealed class TimelineDataServiceTests
         {
             Session(Local(Today, 9, 0), firstEnd),
             Session(secondStart, Local(Today, 11, 0)),
-            // Back-to-back with the previous one: must not produce a gap.
-            Session(Local(Today, 11, 0), Local(Today, 11, 45))
+            // Back-to-back with the previous one (a different app, so no display
+            // merge): must not produce a gap.
+            Session(Local(Today, 11, 0), Local(Today, 11, 45),
+                processName: "msedge", displayName: "Edge")
         };
         var service = CreateService(sessions, nowLocal);
 
@@ -308,6 +310,224 @@ public sealed class TimelineDataServiceTests
         await service.GetTimelineAsync(Today);
 
         Assert.True(samples.LastLimit >= 21600);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_MergesAdjacentSameAppFragmentsWithinWindow()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        // 60s hole between two Code fragments — within the 120s merge window.
+        var first = Session(Local(Today, 9, 0), Local(Today, 9, 10),
+            processName: "Code", displayName: "Code", closeReason: "ProcessChanged");
+        var second = Session(Local(Today, 9, 11), Local(Today, 9, 20),
+            processName: "Code", displayName: "Visual Studio Code", closeReason: "Paused");
+        var service = CreateService([first, second], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(2, result.RawSegmentCount);
+        var segment = Assert.Single(result.Segments);
+        Assert.Equal(Local(Today, 9, 0).ToUniversalTime(), segment.StartedAtUtc);
+        Assert.Equal(Local(Today, 9, 20).ToUniversalTime(), segment.EndedAtUtc);
+        Assert.False(segment.IsOpen);
+        Assert.Equal("Code", segment.ProcessName);
+        // DisplayName falls back to the last non-empty one; CloseReason comes from the last fragment.
+        Assert.Equal("Visual Studio Code", segment.DisplayName);
+        Assert.Equal("Paused", segment.CloseReason);
+        Assert.Equal(600 + 540, segment.TotalSeconds);
+        Assert.Equal(600 + 540, segment.ActiveSeconds);
+        Assert.Equal(0, segment.IdleSeconds);
+        Assert.Equal(0, segment.UnknownSeconds);
+
+        // Sub-segments tile the merged block exactly: active, inactive hole, active.
+        Assert.Equal(3, segment.SubSegments.Count);
+        Assert.Equal(segment.StartedAtUtc, segment.SubSegments[0].StartedAtUtc);
+        Assert.True(segment.SubSegments[0].IsActive);
+        Assert.False(segment.SubSegments[1].IsActive);
+        Assert.Equal(Local(Today, 9, 10).ToUniversalTime(), segment.SubSegments[1].StartedAtUtc);
+        Assert.Equal(Local(Today, 9, 11).ToUniversalTime(), segment.SubSegments[1].EndedAtUtc);
+        Assert.True(segment.SubSegments[2].IsActive);
+        Assert.Equal(segment.EndedAtUtc, segment.SubSegments[2].EndedAtUtc);
+        AssertTiling(segment);
+
+        // The merged-away micro-gap never surfaces as a gap.
+        Assert.Empty(result.Gaps);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_DoesNotMergeSameAppWhenGapExceedsWindow()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var first = Session(Local(Today, 9, 0), Local(Today, 9, 10));
+        // 121s hole — just outside the merge window.
+        var secondStart = Local(Today, 9, 12).AddSeconds(1);
+        var second = Session(secondStart, Local(Today, 9, 20));
+        var service = CreateService([first, second], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(2, result.RawSegmentCount);
+        Assert.Equal(2, result.Segments.Count);
+        var gap = Assert.Single(result.Gaps);
+        Assert.Equal(Local(Today, 9, 10).ToUniversalTime(), gap.StartedAtUtc);
+        Assert.Equal(secondStart.ToUniversalTime(), gap.EndedAtUtc);
+        Assert.Equal(121, gap.DurationSeconds);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_DoesNotMergeDifferentAppsWithinWindow()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var first = Session(Local(Today, 9, 0), Local(Today, 9, 10), processName: "Code");
+        var second = Session(Local(Today, 9, 11), Local(Today, 9, 20),
+            processName: "msedge", displayName: "Edge");
+        var service = CreateService([first, second], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(2, result.RawSegmentCount);
+        Assert.Equal(2, result.Segments.Count);
+        Assert.Equal("Code", result.Segments[0].ProcessName);
+        Assert.Equal("msedge", result.Segments[1].ProcessName);
+        // The 60s hole stays a real gap across different apps.
+        var gap = Assert.Single(result.Gaps);
+        Assert.Equal(60, gap.DurationSeconds);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_ChainMergesThroughMultipleFragments()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var first = Session(Local(Today, 9, 0), Local(Today, 9, 5), closeReason: "ProcessChanged");
+        var second = Session(Local(Today, 9, 6), Local(Today, 9, 10), closeReason: "ProcessChanged");
+        var third = Session(Local(Today, 9, 11).AddSeconds(30), Local(Today, 9, 15), closeReason: "Stopped");
+        var service = CreateService([first, second, third], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(3, result.RawSegmentCount);
+        var segment = Assert.Single(result.Segments);
+        Assert.Equal(Local(Today, 9, 0).ToUniversalTime(), segment.StartedAtUtc);
+        Assert.Equal(Local(Today, 9, 15).ToUniversalTime(), segment.EndedAtUtc);
+        Assert.Equal("Stopped", segment.CloseReason);
+        Assert.Equal(300 + 240 + 210, segment.TotalSeconds);
+        // active / hole / active / hole / active — tiling the whole block.
+        Assert.Equal(5, segment.SubSegments.Count);
+        Assert.False(segment.SubSegments[1].IsActive);
+        Assert.False(segment.SubSegments[3].IsActive);
+        AssertTiling(segment);
+        Assert.Empty(result.Gaps);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_MergeTakesOpenStateAndEffectiveEndFromLastFragment()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var closed = Session(Local(Today, 10, 0), Local(Today, 10, 5));
+        var open = new AppSession
+        {
+            StartedAtUtc = Local(Today, 10, 6).ToUniversalTime(),
+            EndedAtUtc = null,
+            ProcessName = "Code",
+            DisplayName = "Code",
+            TotalDurationSeconds = (int)(nowLocal - Local(Today, 10, 6)).TotalSeconds,
+            ActiveDurationSeconds = (int)(nowLocal - Local(Today, 10, 6)).TotalSeconds,
+            CloseReason = "Open"
+        };
+        var service = CreateService([closed, open], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(2, result.RawSegmentCount);
+        var segment = Assert.Single(result.Segments);
+        Assert.True(segment.IsOpen);
+        Assert.Equal("Open", segment.CloseReason);
+        Assert.Equal(Local(Today, 10, 0).ToUniversalTime(), segment.StartedAtUtc);
+        Assert.Equal(nowLocal.ToUniversalTime(), segment.EndedAtUtc);
+        Assert.Equal(3, segment.SubSegments.Count);
+        AssertTiling(segment);
+        Assert.Empty(result.Gaps);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_NeverMergesIntoOpenSegment()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        // Synthetic overlap: an open segment followed by another same-app fragment.
+        var open = new AppSession
+        {
+            StartedAtUtc = Local(Today, 9, 0).ToUniversalTime(),
+            EndedAtUtc = null,
+            ProcessName = "Code",
+            DisplayName = "Code",
+            TotalDurationSeconds = (int)(nowLocal - Local(Today, 9, 0)).TotalSeconds,
+            ActiveDurationSeconds = (int)(nowLocal - Local(Today, 9, 0)).TotalSeconds,
+            CloseReason = "Open"
+        };
+        var later = Session(Local(Today, 10, 0), Local(Today, 10, 10));
+        var service = CreateService([open, later], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(2, result.RawSegmentCount);
+        Assert.Equal(2, result.Segments.Count);
+        Assert.True(result.Segments[0].IsOpen);
+        Assert.False(result.Segments[1].IsOpen);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_BackToBackSameAppMergesWithoutHoleSubSegment()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var first = Session(Local(Today, 9, 0), Local(Today, 9, 10));
+        var second = Session(Local(Today, 9, 10), Local(Today, 9, 20));
+        var service = CreateService([first, second], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(2, result.RawSegmentCount);
+        var segment = Assert.Single(result.Segments);
+        // Zero-length hole: no inactive block is inserted.
+        Assert.Equal(2, segment.SubSegments.Count);
+        Assert.All(segment.SubSegments, sub => Assert.True(sub.IsActive));
+        AssertTiling(segment);
+        Assert.Empty(result.Gaps);
+    }
+
+    [Fact]
+    public async Task GetTimelineAsync_MergedMicroGapsDisappearButRealGapRemains()
+    {
+        var nowLocal = Local(Today, 12, 0);
+        var first = Session(Local(Today, 9, 0), Local(Today, 9, 5), processName: "Code");
+        var second = Session(Local(Today, 9, 6), Local(Today, 9, 10), processName: "Code");
+        var other = Session(Local(Today, 10, 0), Local(Today, 10, 30),
+            processName: "msedge", displayName: "Edge");
+        var service = CreateService([first, second, other], nowLocal);
+
+        var result = await service.GetTimelineAsync(Today);
+
+        Assert.Equal(3, result.RawSegmentCount);
+        Assert.Equal(2, result.Segments.Count);
+        Assert.Equal("Code", result.Segments[0].ProcessName);
+        Assert.Equal("msedge", result.Segments[1].ProcessName);
+        // Only the >120s hole between the merged Code block and Edge survives.
+        var gap = Assert.Single(result.Gaps);
+        Assert.Equal(Local(Today, 9, 10).ToUniversalTime(), gap.StartedAtUtc);
+        Assert.Equal(Local(Today, 10, 0).ToUniversalTime(), gap.EndedAtUtc);
+        Assert.Equal(3000, gap.DurationSeconds);
+    }
+
+    private static void AssertTiling(TimelineSegment segment)
+    {
+        Assert.Equal(segment.StartedAtUtc, segment.SubSegments[0].StartedAtUtc);
+        for (var index = 1; index < segment.SubSegments.Count; index++)
+        {
+            Assert.Equal(
+                segment.SubSegments[index - 1].EndedAtUtc,
+                segment.SubSegments[index].StartedAtUtc);
+        }
+
+        Assert.Equal(segment.EndedAtUtc, segment.SubSegments[^1].EndedAtUtc);
     }
 
     private static TimelineDataService CreateService(

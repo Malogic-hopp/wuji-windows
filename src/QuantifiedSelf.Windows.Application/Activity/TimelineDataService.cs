@@ -15,12 +15,19 @@ namespace QuantifiedSelf.Windows.ApplicationLayer.Activity;
 /// Sessions with idle time are further split into alternating active/idle sub-segments
 /// using per-sample activity state from foreground_samples, so the 24-hour track
 /// visually distinguishes active use from idle periods within a session.
+///
+/// Adjacent same-app fragments from rapid switching are merged into a single block
+/// for display only; raw database sessions stay untouched.
 /// </summary>
 public sealed class TimelineDataService : ITimelineDataService
 {
     private const int MaxSessionsPerDay = 1000;
     private const int MinSampleQueryLimit = 15_000;
     private const int MaxSampleQueryLimit = 500_000;
+
+    // Display-oriented merge of adjacent same-app fragments from rapid switching;
+    // raw sessions stay untouched — merging only shapes this query result.
+    private const int MergeWindowSeconds = 120;
 
     private readonly ISessionQueryPort _sessionQueryPort;
     private readonly ISampleQueryPort _sampleQueryPort;
@@ -98,6 +105,9 @@ public sealed class TimelineDataService : ITimelineDataService
 
         segments = segments.OrderBy(segment => segment.StartedAtUtc).ToList();
 
+        var rawSegmentCount = segments.Count;
+        segments = MergeAdjacentFragments(segments);
+
         var gaps = new List<TimelineGap>();
         for (var i = 1; i < segments.Count; i++)
         {
@@ -121,8 +131,98 @@ public sealed class TimelineDataService : ITimelineDataService
             Date = localDate,
             IsToday = localDate == today,
             Segments = segments,
-            Gaps = gaps
+            Gaps = gaps,
+            RawSegmentCount = rawSegmentCount
         };
+    }
+
+    /// <summary>
+    /// Merges adjacent same-app fragments separated by at most
+    /// <see cref="MergeWindowSeconds"/> into one display block, so rapid app
+    /// switching does not paint hundreds of tiny slivers on the track. The input
+    /// must be sorted ascending by start; gap computation runs on the merged list,
+    /// so merged-away micro-gaps never surface as <see cref="TimelineGap"/> entries.
+    /// </summary>
+    private static List<TimelineSegment> MergeAdjacentFragments(List<TimelineSegment> segments)
+    {
+        if (segments.Count < 2)
+        {
+            return segments;
+        }
+
+        var merged = new List<TimelineSegment>(segments.Count);
+        var current = segments[0];
+        for (var index = 1; index < segments.Count; index++)
+        {
+            var next = segments[index];
+            // Never merge INTO an open segment — defensively, since an open
+            // segment can only ever be the last one on the day.
+            if (!current.IsOpen
+                && string.Equals(current.ProcessName, next.ProcessName, StringComparison.Ordinal)
+                && next.StartedAtUtc - (current.EndedAtUtc ?? current.StartedAtUtc)
+                    <= TimeSpan.FromSeconds(MergeWindowSeconds))
+            {
+                current = MergePair(current, next);
+            }
+            else
+            {
+                merged.Add(current);
+                current = next;
+            }
+        }
+
+        merged.Add(current);
+        return merged;
+    }
+
+    // TimelineSegment is init-only, so merging produces a new instance: the span
+    // covers the first fragment's start through the last fragment's effective end,
+    // durations are summed, and open state / close reason come from the last one.
+    private static TimelineSegment MergePair(TimelineSegment first, TimelineSegment second)
+    {
+        return new TimelineSegment
+        {
+            StartedAtUtc = first.StartedAtUtc,
+            EndedAtUtc = second.EndedAtUtc,
+            IsOpen = second.IsOpen,
+            ProcessName = first.ProcessName,
+            DisplayName = string.IsNullOrWhiteSpace(second.DisplayName)
+                ? first.DisplayName
+                : second.DisplayName,
+            TotalSeconds = first.TotalSeconds + second.TotalSeconds,
+            ActiveSeconds = first.ActiveSeconds + second.ActiveSeconds,
+            IdleSeconds = first.IdleSeconds + second.IdleSeconds,
+            UnknownSeconds = first.UnknownSeconds + second.UnknownSeconds,
+            CloseReason = second.CloseReason,
+            SubSegments = TileSubSegments(first, second)
+        };
+    }
+
+    // Concatenates both fragments' sub-segments; a positive hole between the
+    // fragments becomes an inactive block, so sub-segments always tile the merged
+    // segment exactly (boundaries shared, no gaps, no overlaps).
+    private static IReadOnlyList<ActivitySubSegment> TileSubSegments(
+        TimelineSegment first,
+        TimelineSegment second)
+    {
+        var firstEnd = first.EndedAtUtc ?? first.StartedAtUtc;
+        var hole = second.StartedAtUtc - firstEnd;
+        if (hole <= TimeSpan.Zero)
+        {
+            return [.. first.SubSegments, .. second.SubSegments];
+        }
+
+        var subSegments = new List<ActivitySubSegment>(
+            first.SubSegments.Count + second.SubSegments.Count + 1);
+        subSegments.AddRange(first.SubSegments);
+        subSegments.Add(new ActivitySubSegment
+        {
+            StartedAtUtc = firstEnd,
+            EndedAtUtc = second.StartedAtUtc,
+            IsActive = false
+        });
+        subSegments.AddRange(second.SubSegments);
+        return subSegments;
     }
 
     private async Task<IReadOnlyList<ActivitySubSegment>> BuildSubSegmentsAsync(
