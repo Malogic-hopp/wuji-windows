@@ -138,6 +138,8 @@ pub struct ActivityTimelineResult {
     pub is_today: bool,
     pub sessions: Vec<ActivityTimelineSession>,
     pub gaps: Vec<ActivityTimelineGap>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_session_count: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

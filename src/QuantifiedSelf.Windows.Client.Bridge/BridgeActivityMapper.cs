@@ -111,7 +111,8 @@ internal static class BridgeActivityMapper
             Date = FormatLocalDate(timeline.Date),
             IsToday = timeline.IsToday,
             Sessions = timeline.Segments.Select(ToTimelineSession).ToArray(),
-            Gaps = timeline.Gaps.Select(ToTimelineGap).ToArray()
+            Gaps = timeline.Gaps.Select(ToTimelineGap).ToArray(),
+            RawSessionCount = NonNegative(timeline.RawSegmentCount)
         };
     }
 

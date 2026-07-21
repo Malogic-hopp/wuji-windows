@@ -19,7 +19,7 @@ internal sealed class FakeBridgeActivityClient : IActivityClient, IOverviewDataS
 
     public HourActivityHeatmapResult Heatmap { get; set; } = new();
 
-    public TimelineResult Timeline { get; set; } = new();
+    public TimelineResult Timeline { get; set; } = new() { RawSegmentCount = 3 };
 
     public Func<CancellationToken, Task<DashboardSummary>>? SummaryHandler { get; set; }
 

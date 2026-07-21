@@ -125,6 +125,7 @@ public sealed class ActivityTimelineResult
     public required bool IsToday { get; init; }
     public required IReadOnlyList<ActivityTimelineSession> Sessions { get; init; }
     public required IReadOnlyList<ActivityTimelineGap> Gaps { get; init; }
+    public long? RawSessionCount { get; init; }
 }
 
 public sealed class ActivityTimelineSession

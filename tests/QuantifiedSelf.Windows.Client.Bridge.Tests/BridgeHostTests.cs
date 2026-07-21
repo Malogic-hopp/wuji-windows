@@ -769,7 +769,8 @@ public sealed class BridgeHostTests
                         EndedAtUtc = new DateTime(2026, 7, 16, 9, 0, 0, DateTimeKind.Utc),
                         DurationSeconds = 2400
                     }
-                ]
+                ],
+                RawSegmentCount = 5
             }
         };
         var result = await RunHostAsync(
@@ -782,6 +783,7 @@ public sealed class BridgeHostTests
         var timeline = Result(result.Responses[2]);
         Assert.Equal("2026-07-16", timeline.GetProperty("date").GetString());
         Assert.False(timeline.GetProperty("isToday").GetBoolean());
+        Assert.Equal(5, timeline.GetProperty("rawSessionCount").GetInt64());
         var sessions = timeline.GetProperty("sessions").EnumerateArray().ToArray();
         Assert.Equal(3, sessions.Length);
         Assert.Equal("安全应用", sessions[0].GetProperty("appName").GetString());

@@ -646,6 +646,11 @@
           "items": {
             "$ref": "#/$defs/ActivityTimelineGap"
           }
+        },
+        "rawSessionCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Segment count before display merging. Optional for backward compatibility with pre-merge bridges; clients should fall back to sessions.length when absent."
         }
       }
     },

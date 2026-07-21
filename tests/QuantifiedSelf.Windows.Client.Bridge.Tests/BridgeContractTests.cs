@@ -222,7 +222,7 @@ public sealed class BridgeContractTests
             ["DurationSeconds", "EndedAtUtc", "StartedAtUtc"],
             typeof(ActivityTimelineGap).GetProperties().Select(property => property.Name).Order().ToArray());
         Assert.Equal(
-            ["Date", "Gaps", "IsToday", "Sessions"],
+            ["Date", "Gaps", "IsToday", "RawSessionCount", "Sessions"],
             typeof(ActivityTimelineResult).GetProperties().Select(property => property.Name).Order().ToArray());
         Assert.Equal(
             ["ActiveRatioPercent", "ActiveSamples", "Date", "Hour", "IdleSamples", "IntensityLevel", "UnknownSamples"],

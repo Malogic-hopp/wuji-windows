@@ -100,6 +100,7 @@ export interface ActivityTimelineResult {
   readonly isToday: boolean;
   readonly sessions: ReadonlyArray<ActivityTimelineSession>;
   readonly gaps: ReadonlyArray<ActivityTimelineGap>;
+  readonly rawSessionCount?: number;
 }
 
 export interface ActivityTimelineSession {

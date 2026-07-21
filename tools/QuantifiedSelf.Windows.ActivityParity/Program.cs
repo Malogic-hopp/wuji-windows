@@ -207,6 +207,10 @@ internal static class ActivityParityProgram
             && tauri.GetProperty("isToday").GetBoolean();
         Add(checks, "今日时间线日期与标记", dateMatches, $"localDate={todayText}, isToday=true");
 
+        var rawSessionCount = tauri.GetProperty("rawSessionCount").GetInt64();
+        Add(checks, "今日时间线合并前段数", wpf.RawSegmentCount == rawSessionCount,
+            $"WPF={wpf.RawSegmentCount}, Tauri={rawSessionCount}, 精确比对");
+
         var sessions = tauri.GetProperty("sessions").EnumerateArray().ToArray();
         var sessionsMatch = wpf.Segments.Count == sessions.Length;
         for (var index = 0; sessionsMatch && index < wpf.Segments.Count; index++)
